@@ -415,6 +415,7 @@ const SupabaseDB = {
   markDueSent: sid => sb(`reminder?student_id=eq.${sid}&status=eq.scheduled&remind_at=lt.${enc(now().toISOString())}`,
                          {method:"PATCH", body:{status:"sent"}, prefer:"return=representation"}),
   locationLogs: sid => sb(`location_log?select=*,lesson(course_name,start_time,room(room_code,block))&student_id=eq.${sid}&order=recorded_at.desc`),
+  addLocationLog: row => sb("location_log", {method:"POST", body:row, prefer:"return=minimal"}),
   sendAlert: (id, msg) => sb(`location_log?log_id=eq.${id}`, {method:"PATCH", body:{alert_sent:true, alert_message:msg}, prefer:"return=representation"}),
   me: () => sb("student?select=student_id,full_name,email,group_code,created_at&limit=1").then(r => r[0] || null),
   timetable: group => sb(`timetable?select=*&group_code=eq.${enc(group)}&order=weekday,start_time`)
@@ -526,6 +527,7 @@ const DemoDB = {
                     const l = demo.lesson.find(x => x.lesson_id===g.lesson_id); const r = demo.room.find(x => x.room_id===l.room_id);
                     return {...g, lesson:{course_name:l.course_name, start_time:l.start_time, room:{room_code:r.room_code, block:r.block}}}; })),
   timetable: group => delay(DEMO_TIMETABLE.filter(t => t.group_code === group)),
+  addLocationLog: row => { demo.location_log.push({log_id: Math.max(0, ...demo.location_log.map(x => x.log_id)) + 1, ...row}); return delay(null); },
   sendAlert: (id, msg) => { const g = demo.location_log.find(x => x.log_id===id); g.alert_sent = true; g.alert_message = msg; return delay([g]); },
   ping: () => delay([{}])
 };
@@ -836,7 +838,16 @@ async function lessonsWithLms(sid){
   const tt = group ? await DB().timetable(group).catch(() => []) : [];
   const lmsLessons = LMS.data(sid).lessons;
   // base: weekly timetable of the group if it exists, otherwise the "lesson" table
-  const base = tt.length ? expandTimetable(tt) : await DB().lessons(sid);
+  const dbLessons = (await DB().lessons(sid)).map(l => (l.room?.room_code === "ONLINE" ? {...l, online:true, room:null} : l));
+  // lessons generated into table "lesson" (9-lessons-and-smart-alerts.sql) are used when present;
+  // otherwise the weekly timetable is expanded in the app
+  // a lesson row "belongs" to the timetable if course, weekday and start time (Astana time) match
+  const astana = iso => { const d = new Date(new Date(iso).getTime() + 5*3600000); return {wd: ((d.getUTCDay() + 6) % 7) + 1, hm: d.toISOString().slice(11,16)}; };
+  const fromTimetable = l => { const a = astana(l.start_time); return tt.some(t => Number(t.weekday) === a.wd && String(t.start_time).slice(0,5) === a.hm && t.course_name === l.course_name); };
+  const weekAhead = Date.now() + 7*86400000;
+  const generated = tt.length ? dbLessons.filter(fromTimetable) : [];
+  const hasGenerated = generated.some(l => new Date(l.start_time) >= Date.now() - 86400000 && new Date(l.start_time) <= weekAhead);
+  const base = !tt.length ? dbLessons : hasGenerated ? generated : expandTimetable(tt);
   const extra = [];
   const myGroup = (state.user?.group_code || "").toUpperCase();
   for(const l of lmsLessons){
@@ -939,6 +950,131 @@ function bindLmsCard(sid, rerun){
   };
 }
 
+/* ===================== SMART "LEAVE NOW" ALERTS =====================
+   On campus  -> alert 5 minutes before the lesson.
+   Off campus -> walking time from your location to AITU + 5 minutes.
+   Location: phone/computer GPS (coordinates stay on the device), or "I'm on campus",
+   or a fixed walking time you set yourself. Every alert is saved to table location_log. */
+const CAMPUS = {lat: 51.0909, lng: 71.4184, radius: 250};   // AITU, EXPO block C1 (OpenStreetMap)
+const WALK_M_PER_MIN = 80;                                   // ≈ 4.8 km/h
+const ROUTE_FACTOR = 1.3;                                    // streets are not a straight line
+const SMART_BUFFER_MIN = 5;
+const smartKey = sid => `hub_smart_${DB().name}_${sid}`;
+const smartSentKey = sid => `hub_smart_sent_${DB().name}_${sid}`;
+let lastFix = null;                                          // {at, info}
+
+function smartSettings(sid){ return {enabled:true, mode:"gps", manualMinutes:15, ...(store.get(smartKey(sid), {}) || {})}; }
+function saveSmartSettings(sid, s){ store.set(smartKey(sid), s); lastFix = null; }
+
+function distanceM(a, b){
+  const R = 6371000, toR = x => x * Math.PI / 180;
+  const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
+  const h = Math.sin(dLat/2)**2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+/* where is the student? -> {onCampus, walk, label, source} */
+async function locateStudent(sid, {fresh = false} = {}){
+  const s = smartSettings(sid);
+  if(s.mode === "campus") return {onCampus:true, walk:0, label:"On campus", source:"you said you are on campus"};
+  if(s.mode === "manual") return {onCampus:false, walk:Number(s.manualMinutes) || 15, label:"Off campus", source:"your walking time"};
+  if(!fresh && lastFix && Date.now() - lastFix.at < 5*60000) return lastFix.info;
+  const info = await new Promise(resolve => {
+    if(!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      p => {
+        const d = distanceM({lat:p.coords.latitude, lng:p.coords.longitude}, CAMPUS);
+        if(d <= CAMPUS.radius) resolve({onCampus:true, walk:0, label:"On campus", source:"GPS"});
+        else resolve({onCampus:false, walk: Math.max(1, Math.ceil(d * ROUTE_FACTOR / WALK_M_PER_MIN)),
+                      label:`Off campus · ${(d/1000).toFixed(1)} km`, source:"GPS", km:d/1000});
+      },
+      () => resolve(null), {enableHighAccuracy:false, timeout:10000, maximumAge:5*60000});
+  });
+  const res = info || {onCampus:false, walk:Number(s.manualMinutes) || 15, label:"Location unavailable", source:"no GPS — your walking time"};
+  lastFix = {at: Date.now(), info: res};
+  return res;
+}
+/* the next lesson that needs walking (not online), in the next 3 hours */
+function nextCampusLesson(lessons){
+  const now = Date.now();
+  return lessons.filter(l => !l.online && new Date(l.start_time) > now && new Date(l.start_time) - now < 3*3600000)
+                .sort((a,b) => new Date(a.start_time) - new Date(b.start_time))[0] || null;
+}
+function leavePlan(lesson, loc){
+  const start = new Date(lesson.start_time);
+  const lead = (loc.onCampus ? 0 : loc.walk) + SMART_BUFFER_MIN;
+  const leaveAt = new Date(start - lead * 60000);
+  const minsLeft = Math.round((start - Date.now()) / 60000);
+  return {lead, leaveAt, minsLeft, due: Date.now() >= leaveAt.getTime()};
+}
+function smartMessage(lesson, loc, plan){
+  const room = lesson.room?.room_code || "your room";
+  return loc.onCampus
+    ? `${lesson.course_name} starts in ${plan.minsLeft} min in ${room}.`
+    : `Leave now: ~${loc.walk} min walk to ${room}. ${lesson.course_name} starts in ${plan.minsLeft} min.` +
+      (loc.walk > plan.minsLeft ? ` You may be ~${loc.walk - plan.minsLeft} min late.` : "");
+}
+async function sendSmartAlert(sid, lesson, loc, plan, {test = false} = {}){
+  const msg = smartMessage(lesson, loc, plan);
+  pushNotify(loc.onCampus ? "AITU Hub — Lesson soon" : "AITU Hub — Leave now", msg);
+  try{ if(navigator.vibrate) navigator.vibrate([200, 100, 200]); }catch(e){}
+  // save to location_log (Assignment 4) — only for lessons that exist in table "lesson"
+  if(/^\d+$/.test(String(lesson.lesson_id))){
+    try{
+      await DB().addLocationLog({student_id: sid, lesson_id: Number(lesson.lesson_id), detected_block: (test ? "TEST · " : "") + loc.label.slice(0, 22),
+        walking_minutes: loc.walk, minutes_before_start: plan.minsLeft, recorded_at: new Date().toISOString(),
+        alert_sent: true, alert_message: msg});
+    }catch(e){ console.warn("location_log not saved:", e.message); }
+  }
+  return msg;
+}
+/* background check: every minute */
+let smartBusy = false;
+async function smartCheck(){
+  if(!state.user || smartBusy) return;
+  const sid = state.user.student_id, s = smartSettings(sid);
+  if(!s.enabled) return;
+  smartBusy = true;
+  try{
+    const lessons = await lessonsWithLms(sid);
+    const lesson = nextCampusLesson(lessons);
+    if(!lesson || new Date(lesson.start_time) - Date.now() > 90*60000) return;   // GPS only when a lesson is near
+    const sent = store.get(smartSentKey(sid), {});
+    if(sent[lesson.lesson_id]) return;
+    const loc = await locateStudent(sid);
+    const plan = leavePlan(lesson, loc);
+    if(plan.due && plan.minsLeft >= 0){
+      sent[lesson.lesson_id] = Date.now();
+      Object.keys(sent).forEach(k => { if(Date.now() - sent[k] > 2*86400000) delete sent[k]; });
+      store.set(smartSentKey(sid), sent);
+      await sendSmartAlert(sid, lesson, loc, plan);
+      if(["dashboard","schedule"].includes(state.screen) && !document.querySelector(".modal-back")) render();
+    }
+  }catch(e){ /* try again next minute */ }
+  finally{ smartBusy = false; }
+}
+setInterval(smartCheck, 60000);
+
+/* card shown on Dashboard and Schedule */
+async function smartCardHtml(sid, lessons){
+  const s = smartSettings(sid);
+  if(!s.enabled) return `<div class="card" style="border-left-color:var(--line)"><div class="row between"><b>🚶 Smart “Leave now”</b><span class="pill grey">off</span></div>
+     <div class="muted" style="font-size:13px;margin-top:4px">Turn it on in Settings to get an alert when it is time to go to class.</div></div>`;
+  const lesson = nextCampusLesson(lessons);
+  if(!lesson) return `<div class="card" style="border-left-color:var(--green)"><div class="row between"><b>🚶 Smart “Leave now”</b><span class="pill green">on</span></div>
+     <div class="muted" style="font-size:13px;margin-top:4px">No lessons on campus in the next 3 hours.</div></div>`;
+  const loc = await locateStudent(sid);
+  const plan = leavePlan(lesson, loc);
+  const sent = store.get(smartSentKey(sid), {})[lesson.lesson_id];
+  const urgent = plan.due;
+  return `<div class="card" style="border-left-color:${urgent ? "var(--red)" : "var(--brand)"};${urgent ? "background:var(--red-soft)" : ""}">
+    <div class="row between"><b>${urgent ? (loc.onCampus ? "📍 Lesson starts soon" : "🚶 Leave now!") : "🚶 Smart “Leave now”"}</b>
+      <span class="pill ${loc.onCampus ? "green" : "blue"}">${esc(loc.label)}</span></div>
+    <div style="font-size:14px;margin-top:6px"><b>${esc(lesson.course_name)}</b> · ${fmtTime(lesson.start_time)} · 🚪 ${esc(lesson.room?.room_code || "—")}</div>
+    <div class="muted" style="font-size:13px;margin-top:4px">
+      ${loc.onCampus ? `You are on campus → alert 5 min before the lesson`
+                     : `~${loc.walk} min walk (${esc(loc.source)}) + 5 min → leave by <b>${fmtTime(plan.leaveAt)}</b>`}
+      ${sent ? " · ✅ alert sent" : urgent ? "" : ` · alert at ${fmtTime(plan.leaveAt)}`}</div></div>`;
+}
 /* ============================== SCREENS ============================== */
 const SCREENS = {};
 
@@ -1037,7 +1173,7 @@ function loginAs(st){
   go("dashboard", {}, {root:true});
   setTimeout(checkDueReminders, 600);
   setTimeout(reminderScheduler, 1500);
-  setTimeout(() => lmsAutoSync(), 1200); startLmsTimer();
+  setTimeout(() => lmsAutoSync(), 1200); startLmsTimer(); setTimeout(smartCheck, 4000);
 }
 
 /* Settings: connect Supabase */
@@ -1065,6 +1201,18 @@ SCREENS.connect = () => {
     </details>
     <button class="btn secondary" id="sbDemo">Switch to demo data</button>
 
+    ${state.user ? `<h2 style="margin-top:28px">Smart “Leave now” alerts</h2>
+    <div class="card" id="smartSettings">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0"><input type="checkbox" id="smOn" style="width:auto"> Alert me when it is time to go to class</label>
+      <p class="muted" style="font-size:13px;margin:6px 0 10px">On campus: 5 min before the lesson. Off campus: walking time to AITU + 5 min.</p>
+      <div class="option" data-sm="gps"><span class="radio"></span><span><div>Use my location (GPS)</div><div class="osub">Your coordinates stay on this device — only “on/off campus” and minutes are saved.</div></span></div>
+      <div class="option" data-sm="campus"><span class="radio"></span><span><div>I am on campus</div><div class="osub">Always alert 5 minutes before the lesson.</div></span></div>
+      <div class="option" data-sm="manual"><span class="radio"></span><span><div>My walking time to AITU: <input type="number" id="smMin" min="1" max="180" style="width:70px;padding:6px;border:1.5px solid var(--line);border-radius:8px"> min</div><div class="osub">For a computer without GPS (e.g. you live in the dormitory).</div></span></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn secondary small" id="smCheck">📍 Check my location now</button>
+        <button class="btn primary small" id="smTest">🔔 Test “Leave now” alert</button></div>
+      <div id="smResult" class="muted" style="font-size:13px;margin-top:8px"></div>
+    </div>` : ""}
+
     <h2 style="margin-top:28px">Privacy & security</h2>
     <div class="card">
       <div class="kv">
@@ -1079,10 +1227,36 @@ SCREENS.connect = () => {
 
     <h2 style="margin-top:28px">About</h2>
     <div class="card">
-      <b>AITU Student Hub</b> 1.7 · Alua Bolat, ST-2606<br>
+      <b>AITU Student Hub</b> 1.8 · Alua Bolat, ST-2606<br>
       <span class="muted" style="font-size:13.5px">Campus floor plans: <a href="https://github.com/Yuujiso/aitumap" target="_blank" rel="noopener">aitumap</a> © 2023 Yuujiso, MIT License.
       Some ideas inspired by the aitu_lighthouse Telegram bot.</span>
     </div>`;
+  if(state.user){
+    const sid = state.user.student_id;
+    const drawSm = () => {
+      const st = smartSettings(sid);
+      $("#smOn").checked = st.enabled; $("#smMin").value = st.manualMinutes;
+      document.querySelectorAll("[data-sm]").forEach(o => o.classList.toggle("selected", o.dataset.sm === st.mode));
+    };
+    drawSm();
+    $("#smOn").onchange = e => { saveSmartSettings(sid, {...smartSettings(sid), enabled: e.target.checked}); toast(e.target.checked ? "Smart alerts on." : "Smart alerts off."); };
+    document.querySelectorAll("[data-sm]").forEach(o => o.onclick = e => { if(e.target.id === "smMin") return; saveSmartSettings(sid, {...smartSettings(sid), mode:o.dataset.sm}); drawSm(); });
+    $("#smMin").onchange = e => { const v = Math.min(180, Math.max(1, Number(e.target.value) || 15)); saveSmartSettings(sid, {...smartSettings(sid), manualMinutes:v, mode:"manual"}); drawSm(); };
+    $("#smCheck").onclick = async () => {
+      $("#smResult").textContent = "Checking…";
+      const loc = await locateStudent(sid, {fresh:true});
+      $("#smResult").innerHTML = loc.onCampus ? "✅ You are <b>on campus</b> — alerts 5 min before lessons."
+        : `📍 <b>${esc(loc.label)}</b> → about <b>${loc.walk} min</b> walk to AITU (${esc(loc.source)}). Alerts ${loc.walk + 5} min before lessons.`;
+    };
+    $("#smTest").onclick = async () => {
+      const lessons = await lessonsWithLms(sid);
+      const lesson = lessons.filter(l => !l.online && new Date(l.start_time) > Date.now()).sort((a,b) => new Date(a.start_time) - new Date(b.start_time))[0];
+      if(!lesson){ $("#smResult").textContent = "No upcoming lessons on campus to test with."; return; }
+      const loc = await locateStudent(sid);
+      const msg = await sendSmartAlert(sid, lesson, loc, leavePlan(lesson, loc), {test:true});
+      $("#smResult").innerHTML = `Sent: “${esc(msg)}”${/^\d+$/.test(String(lesson.lesson_id)) ? " · saved to location_log" : ""}`;
+    };
+  }
   const sbBtn = $("#sbBuiltin"); if(sbBtn) sbBtn.onclick = async () => { await Auth.signOut(); clearPrivateCache(); store.del("hub_force_demo"); store.del("hub_sb"); store.del("hub_user"); state.user = null; toast("✅ Using the built-in database."); go("login", {}, {root:true}); };
   $("#clearLocal").onclick = async () => {
     if(!await confirmModal({title:"Clear local data?", text:"Removes cached lists and the saved login from this computer. Nothing is deleted in the database.", okText:"Clear", danger:true})) return;
@@ -1138,13 +1312,11 @@ SCREENS.dashboard = async () => {
   const nextLesson = lessons.find(l => new Date(l.start_time) > now());
   const unread = items.filter(i => i.source==="Outlook" && urgencyOf(i)!=="past").length;
   const scheduled = rems.filter(r => r.status==="scheduled").length;
-  const risk = logs.find(g => !g.alert_sent && g.walking_minutes + 2 >= g.minutes_before_start);
   const hour = now().getHours();
   $("#main").innerHTML = `
     ${it.error ? errorBlock(it.error, null, it.cached) : ""}
     <h2>${hour<12?"Good morning":hour<18?"Hello":"Good evening"}, ${esc((u.full_name||"").split(" ")[0])} 👋</h2>
-    ${risk ? `<div class="banner alert clickable" id="riskBanner" style="cursor:pointer">🚶 <b>Leave now:</b> ${risk.walking_minutes} min walk to
-       ${esc(risk.lesson?.room?.room_code||"your room")}, ${esc(risk.lesson?.course_name||"class")} starts in ${risk.minutes_before_start} min. <u>Open</u></div>` : ""}
+    <div id="smartBox"></div>
     <div class="grid2" style="grid-template-columns:1fr 1fr;align-items:start">
     <div>${next ? `<h3>Next deadline</h3>${itemCard(next)}` :
       `<h3>Next deadline</h3><div class="banner ok">🎉 You have no upcoming deadlines.</div>`}</div>
@@ -1164,7 +1336,7 @@ SCREENS.dashboard = async () => {
   bindItemCards();
   document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go, {}, {root:true}));
   const nl = $("#nextLesson"); if(nl) nl.onclick = () => { state.scheduleDay = dayKey(nextLesson.start_time); go("schedule", {lessonId:nextLesson.lesson_id}); };
-  const rb = $("#riskBanner"); if(rb) rb.onclick = () => { state.scheduleDay = dayKey(risk.lesson.start_time); go("schedule", {lessonId:risk.lesson_id}); };
+  smartCardHtml(u.student_id, lessons).then(h => { const b = $("#smartBox"); if(b) b.innerHTML = h; }).catch(() => {});
 };
 
 function itemCard(i){
@@ -1332,16 +1504,11 @@ SCREENS.schedule = async ({lessonId} = {}) => {
     const dayLessons = lessons.filter(l => dayKey(l.start_time) === state.scheduleDay);
     let sel = dayLessons.find(l => l.lesson_id === lessonId)
            || dayLessons.find(l => new Date(l.end_time || l.start_time) > now()) || dayLessons[0];
-    const risk = logs.filter(x => x.walking_minutes + 2 >= x.minutes_before_start);
     const draw = () => {
       $("#main").innerHTML = `
         ${r.error ? errorBlock(r.error, run, r.cached) : ""}
-        ${risk.map(x => x.alert_sent
-          ? `<div class="banner ok">✅ Alert sent: “${esc(x.alert_message)}”</div>`
-          : `<div class="banner alert">🚶 <b>Late risk</b> — you are in <b>${esc(x.detected_block)}</b>, ${x.walking_minutes} min walk to
-               ${esc(x.lesson?.room?.room_code||"")}, ${esc(x.lesson?.course_name||"")} starts in ${x.minutes_before_start} min.
-               <button class="btn small secondary" style="margin-top:8px;background:#fff" data-alert="${x.log_id}" data-w="${x.walking_minutes}" data-m="${x.minutes_before_start}">Send “Leave now” push</button></div>`).join("")}
         <div class="cols"><div>
+        <div id="smartBox"></div>
         ${lmsCardHtml(u.student_id)}
         ${(() => {
           // week navigation: only the days of the selected week are shown as chips
@@ -1401,12 +1568,12 @@ SCREENS.schedule = async ({lessonId} = {}) => {
       bindLmsCard(u.student_id, run); bindItemCards();
       document.querySelectorAll("[data-day]").forEach(b => b.onclick = () => { if(!b.dataset.day) return; state.scheduleDay = b.dataset.day; state.params = {}; run(); });
       document.querySelectorAll("[data-lesson]").forEach(c => c.onclick = () => { sel = dayLessons.find(l => l.lesson_id == c.dataset.lesson); state.params = {...state.params, lessonId: sel.lesson_id}; draw(); });
-      document.querySelectorAll("[data-alert]").forEach(b => b.onclick = async () => {
-        const msg = `Leave now: ${b.dataset.w} min walk, class starts in ${b.dataset.m} min`;
-        b.disabled = true; b.textContent = "Sending…";
-        try{ await DB().sendAlert(Number(b.dataset.alert), msg); pushNotify("AITU Hub — Leave now", msg); run(); }
-        catch(ex){ b.disabled = false; b.textContent = "Retry"; toast("❌ " + esc(ex.message)); }
-      });
+      smartCardHtml(u.student_id, lessons).then(h => {
+        const b = $("#smartBox"); if(!b) return;
+        const recent = logs.filter(x => x.alert_sent).slice(0, 3);
+        b.innerHTML = h + (recent.length ? `<details style="margin:-4px 0 10px"><summary class="muted" style="cursor:pointer;font-size:13px">Recent alerts (${recent.length})</summary>
+          ${recent.map(x => `<div class="muted" style="font-size:12.5px;margin-top:4px">${x.recorded_at ? fmtDT(x.recorded_at) : ""} · ${esc(x.detected_block||"")} · ${esc(x.alert_message||"")}</div>`).join("")}</details>` : "");
+      }).catch(() => {});
       bindRetry(run);
     };
     draw();
@@ -1813,7 +1980,7 @@ if("serviceWorker" in navigator && location.protocol === "https:"){
 /* ------------------------------- start ------------------------------- */
 if(state.user && sbConfig() && !getSession()){ state.user = null; store.del("hub_user"); }   // no valid session -> log in again
 go(state.user ? "dashboard" : "login", {}, {root:true});
-if(state.user){ setTimeout(checkDueReminders, 800); setTimeout(() => lmsAutoSync(), 1500); startLmsTimer(); }
+if(state.user){ setTimeout(checkDueReminders, 800); setTimeout(() => lmsAutoSync(), 1500); startLmsTimer(); setTimeout(smartCheck, 4000); }
 try{ if("Notification" in window && Notification.permission === "default") Notification.requestPermission(); }catch(e){}
 </script>
 </body>
