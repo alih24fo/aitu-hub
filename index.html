@@ -416,6 +416,14 @@ const SupabaseDB = {
                          {method:"PATCH", body:{status:"sent"}, prefer:"return=representation"}),
   locationLogs: sid => sb(`location_log?select=*,lesson(course_name,start_time,room(room_code,block))&student_id=eq.${sid}&order=recorded_at.desc`),
   addLocationLog: row => sb("location_log", {method:"POST", body:row, prefer:"return=minimal"}),
+  /* SELECT … WHERE: search / filter deadlines in the database */
+  searchItems: (sid, {source, q}) => {
+    const clean = String(q || "").replace(/[*%(),."\\]/g, " ").trim();
+    return sb(`academic_item?select=*&student_id=eq.${sid}` + (source ? `&source=eq.${enc(source)}` : "") +
+              (clean ? `&title=ilike.${enc("*" + clean + "*")}` : "") + `&order=due_at.asc`);
+  },
+  /* COUNT / SUM / AVG / GROUP BY: calculated in the database (10-stats-and-search.sql) */
+  stats: () => sb("rpc/my_stats", {method:"POST", body:{}}),
   sendAlert: (id, msg) => sb(`location_log?log_id=eq.${id}`, {method:"PATCH", body:{alert_sent:true, alert_message:msg}, prefer:"return=representation"}),
   me: () => sb("student?select=student_id,full_name,email,group_code,created_at&limit=1").then(r => r[0] || null),
   timetable: group => sb(`timetable?select=*&group_code=eq.${enc(group)}&order=weekday,start_time`)
@@ -527,6 +535,22 @@ const DemoDB = {
                     const l = demo.lesson.find(x => x.lesson_id===g.lesson_id); const r = demo.room.find(x => x.room_id===l.room_id);
                     return {...g, lesson:{course_name:l.course_name, start_time:l.start_time, room:{room_code:r.room_code, block:r.block}}}; })),
   timetable: group => delay(DEMO_TIMETABLE.filter(t => t.group_code === group)),
+  searchItems: (sid, {source, q}) => delay(demo.academic_item.filter(i => i.student_id === sid && (!source || i.source === source) &&
+                    (!q || i.title.toLowerCase().includes(String(q).toLowerCase()))).sort((a,b) => new Date(a.due_at) - new Date(b.due_at))),
+  stats: () => {
+    const sid = state.user.student_id, by = (arr, k) => Object.entries(arr.reduce((m, x) => (m[x[k]] = (m[x[k]] || 0) + 1, m), {}));
+    const items = demo.academic_item.filter(i => i.student_id === sid), rems = demo.reminder.filter(r => r.student_id === sid);
+    const mon = new Date(); mon.setHours(0,0,0,0); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+    const wk = demo.lesson.filter(l => l.student_id === sid && new Date(l.start_time) >= mon && new Date(l.start_time) < new Date(mon.getTime() + 7*86400000));
+    const logs = demo.location_log.filter(g => g.student_id === sid);
+    return delay({
+      deadlines_by_source: by(items, "source").map(([source, total]) => ({source, total, upcoming: items.filter(i => i.source === source && new Date(i.due_at) >= now()).length})),
+      reminders_by_status: by(rems, "status").map(([status, total]) => ({status, total})),
+      lessons_week: {count: wk.length, hours: Math.round(wk.reduce((s, l) => s + (new Date(l.end_time) - new Date(l.start_time)) / 3600000, 0) * 10) / 10},
+      lessons_by_course: by(wk, "course_name").map(([course_name, lessons]) => ({course_name, lessons})).sort((a,b) => b.lessons - a.lessons),
+      avg_walk_minutes: logs.length ? Math.round(logs.reduce((s, g) => s + g.walking_minutes, 0) / logs.length * 10) / 10 : null,
+      alerts_sent: logs.filter(g => g.alert_sent).length });
+  },
   addLocationLog: row => { demo.location_log.push({log_id: Math.max(0, ...demo.location_log.map(x => x.log_id)) + 1, ...row}); return delay(null); },
   sendAlert: (id, msg) => { const g = demo.location_log.find(x => x.log_id===id); g.alert_sent = true; g.alert_message = msg; return delay([g]); },
   ping: () => delay([{}])
@@ -613,6 +637,11 @@ function toast(html, ms = 3200){
   const t = document.createElement("div"); t.className = "toast"; t.innerHTML = html;
   $("#phone").appendChild(t); setTimeout(() => t.remove(), ms);
 }
+/* Demo mode for the defense: show which database operation a button performed */
+function showSqlOn(){ return !!store.get("hub_showsql", false); }
+function sqlToast(sql){ if(showSqlOn()) toast(`🗄️ <span><b>Database operation</b><br><code style="background:transparent;color:#cfe0ff;white-space:pre-wrap">${esc(sql)}</code></span>`, 6000); }
+const sqlStr = v => `'${String(v).replace(/'/g, "''")}'`;
+
 /* Windows system notification (works in the desktop app) + in-app toast */
 function pushNotify(title, body){
   toast(`📲 <span><b>${esc(title)}</b><br>${esc(body)}</span>`, 4500);
@@ -1023,6 +1052,7 @@ async function sendSmartAlert(sid, lesson, loc, plan, {test = false} = {}){
       await DB().addLocationLog({student_id: sid, lesson_id: Number(lesson.lesson_id), detected_block: (test ? "TEST · " : "") + loc.label.slice(0, 22),
         walking_minutes: loc.walk, minutes_before_start: plan.minsLeft, recorded_at: new Date().toISOString(),
         alert_sent: true, alert_message: msg});
+      sqlToast(`INSERT INTO location_log (student_id, lesson_id, detected_block, walking_minutes, minutes_before_start, alert_sent, alert_message)\nVALUES (${sid}, ${lesson.lesson_id}, ${sqlStr(loc.label.slice(0,22))}, ${loc.walk}, ${plan.minsLeft}, true, ${sqlStr(msg)});`);
     }catch(e){ console.warn("location_log not saved:", e.message); }
   }
   return msg;
@@ -1201,6 +1231,11 @@ SCREENS.connect = () => {
     </details>
     <button class="btn secondary" id="sbDemo">Switch to demo data</button>
 
+    <h2 style="margin-top:28px">Presentation mode</h2>
+    <div class="card"><label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0">
+      <input type="checkbox" id="showSql" style="width:auto" ${showSqlOn() ? "checked" : ""}> Show database operations</label>
+      <p class="muted" style="font-size:13px;margin:6px 0 0">After each action (add, change, delete a reminder, smart alert) a message shows the SQL operation that was run in Supabase. Useful for the project defense.</p></div>
+
     ${state.user ? `<h2 style="margin-top:28px">Smart “Leave now” alerts</h2>
     <div class="card" id="smartSettings">
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:0"><input type="checkbox" id="smOn" style="width:auto"> Alert me when it is time to go to class</label>
@@ -1227,10 +1262,11 @@ SCREENS.connect = () => {
 
     <h2 style="margin-top:28px">About</h2>
     <div class="card">
-      <b>AITU Student Hub</b> 1.8 · Alua Bolat, ST-2606<br>
+      <b>AITU Student Hub</b> 1.9 · Alua Bolat, ST-2606<br>
       <span class="muted" style="font-size:13.5px">Campus floor plans: <a href="https://github.com/Yuujiso/aitumap" target="_blank" rel="noopener">aitumap</a> © 2023 Yuujiso, MIT License.
       Some ideas inspired by the aitu_lighthouse Telegram bot.</span>
     </div>`;
+  $("#showSql").onchange = e => { store.set("hub_showsql", e.target.checked); toast(e.target.checked ? "🗄️ Database operations will be shown." : "Presentation mode off."); };
   if(state.user){
     const sid = state.user.student_id;
     const drawSm = () => {
@@ -1329,7 +1365,9 @@ SCREENS.dashboard = async () => {
       <button class="tile" data-go="campus"><div class="big">🗺️</div><div class="tname">Campus Map</div><div class="tsub">Find any room, 3 floors</div></button>
       <button class="tile" data-go="reminders"><div class="big">🔔</div><div class="tname">Reminders</div><div class="tsub">${scheduled} scheduled</div></button>
     </div>
+    <div id="statsBox"></div>
     `;
+  loadStats();
   $("#nextLessonBox").innerHTML = `${nextLesson ? `<h3>Next lesson</h3><div class="card clickable normal" id="nextLesson">
       <div class="row between"><div class="title">${esc(nextLesson.course_name)}</div><span class="pill blue">${esc(nextLesson.lesson_type||"")}</span></div>
       <div class="meta"><span>🕒 ${fmtDT(nextLesson.start_time)}</span><span>🚪 ${esc(nextLesson.room?.room_code||"—")}</span></div></div>` : `<h3>Next lesson</h3><div class="banner info">No more lessons scheduled.</div>`}`;
@@ -1338,6 +1376,45 @@ SCREENS.dashboard = async () => {
   const nl = $("#nextLesson"); if(nl) nl.onclick = () => { state.scheduleDay = dayKey(nextLesson.start_time); go("schedule", {lessonId:nextLesson.lesson_id}); };
   smartCardHtml(u.student_id, lessons).then(h => { const b = $("#smartBox"); if(b) b.innerHTML = h; }).catch(() => {});
 };
+
+/* "Your numbers": aggregation calculated in the database (COUNT, SUM, AVG, GROUP BY) */
+async function loadStats(){
+  const box = $("#statsBox"); if(!box) return;
+  box.innerHTML = `<h3>Your numbers</h3><div class="spinner" style="margin:10px auto"></div>`;
+  let st;
+  try{ st = await DB().stats(); }
+  catch(e){
+    const missing = /404|PGRST202|could not find the function/i.test(e.message);
+    box.innerHTML = `<h3>Your numbers</h3><div class="banner warn" style="font-size:13px">${missing ? "Statistics are not installed in the database yet — run <b>supabase/10-stats-and-search.sql</b>." : "Could not load statistics: " + esc(e.message)}</div>`;
+    return;
+  }
+  if(!document.body.contains(box)) return;
+  const bar = (label, val, max, color) => `<div style="margin:5px 0"><div class="row between" style="font-size:13px"><span>${esc(label)}</span><b>${val}</b></div>
+      <div style="height:7px;background:var(--grey-soft);border-radius:4px;overflow:hidden"><div style="height:100%;width:${max ? Math.round(val / max * 100) : 0}%;background:${color};border-radius:4px"></div></div></div>`;
+  const ds = st.deadlines_by_source || [], rs = st.reminders_by_status || [], lc = (st.lessons_by_course || []).slice(0, 5);
+  const maxD = Math.max(1, ...ds.map(x => x.total)), maxL = Math.max(1, ...lc.map(x => x.lessons)), maxR = Math.max(1, ...rs.map(x => x.total));
+  box.innerHTML = `<h3>Your numbers <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">· calculated in the database</span></h3>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">
+      <div class="card" style="border-left-color:var(--brand)"><div class="muted" style="font-size:12px">Lessons this week · COUNT, SUM</div>
+        <div style="font-size:28px;font-weight:750;margin:2px 0">${st.lessons_week?.count ?? 0}</div>
+        <div class="muted" style="font-size:13px">${st.lessons_week?.hours ?? 0} hours in class</div>
+        ${lc.map(x => bar(x.course_name, x.lessons, maxL, "var(--brand)")).join("")}</div>
+      <div class="card" style="border-left-color:var(--yellow)"><div class="muted" style="font-size:12px">Deadlines by platform · GROUP BY source</div>
+        ${ds.length ? ds.map(x => bar(`${sourceIcon(x.source)} ${x.source} (${x.upcoming} upcoming)`, x.total, maxD, "var(--yellow)")).join("") : `<div class="muted" style="font-size:13px;margin-top:6px">No deadlines in the database.</div>`}</div>
+      <div class="card" style="border-left-color:var(--green)"><div class="muted" style="font-size:12px">Reminders · GROUP BY status</div>
+        ${rs.length ? rs.map(x => bar(x.status, x.total, maxR, "var(--green)")).join("") : `<div class="muted" style="font-size:13px;margin-top:6px">No reminders yet.</div>`}</div>
+      <div class="card" style="border-left-color:var(--red)"><div class="muted" style="font-size:12px">Smart “Leave now” · AVG, COUNT</div>
+        <div style="font-size:28px;font-weight:750;margin:2px 0">${st.alerts_sent ?? 0}</div>
+        <div class="muted" style="font-size:13px">alerts sent · average walk <b>${st.avg_walk_minutes ?? "—"}</b> min</div></div>
+    </div>
+    <details style="margin-top:4px"><summary class="muted" style="cursor:pointer;font-size:12.5px">🗄️ Show the SQL</summary>
+      <pre style="font-size:11.5px;white-space:pre-wrap;color:var(--muted);margin:6px 0 0">SELECT source, COUNT(*) AS total FROM academic_item WHERE student_id = ${state.user.student_id} GROUP BY source;
+SELECT status, COUNT(*) FROM reminder WHERE student_id = ${state.user.student_id} GROUP BY status;
+SELECT COUNT(*), SUM(end_time - start_time) FROM lesson WHERE student_id = ${state.user.student_id} AND start_time in this week;
+SELECT course_name, COUNT(*) FROM lesson WHERE … this week GROUP BY course_name;
+SELECT AVG(walking_minutes), COUNT(*) FROM location_log WHERE student_id = ${state.user.student_id};
+-- one call: rpc my_stats()</pre></details>`;
+}
 
 function itemCard(i){
   const u = urgencyOf(i);
@@ -1353,31 +1430,60 @@ function bindItemCards(){
 /* 3. DEADLINES / NOTIFICATIONS — one urgency-sorted list */
 SCREENS.deadlines = async () => {
   const u = state.user;
-  setHeader("Deadlines", {showBack:false}); setTabs("deadlines"); loading();
+  setHeader("Deadlines", {showBack:false}); setTabs("deadlines");
+  const src0 = state.sourceFilter || "All";
+  // the search box is drawn once, so typing is not interrupted when results update
+  $("#main").innerHTML = `
+    <form class="search-box" id="dlSearch" autocomplete="off" style="max-width:none;margin-bottom:10px">
+      <span class="si">🔍</span>
+      <input type="text" id="dlQ" placeholder="Search deadlines by title… (e.g. quiz, calculus)" value="${esc(state.dlQuery||"")}" aria-label="Search deadlines">
+    </form>
+    <div class="filters" id="dlFilters"></div>
+    <div id="dlBody"><div class="spinner"></div></div>`;
   const run = async () => {
-    const r = await load(`items_${u.student_id}`, () => itemsWithLms(u.student_id));
-    const src = state.sourceFilter || "All";
-    const all = r.data || [];
-    const items = src === "All" ? all : all.filter(i => i.source === src);
+    const src = state.sourceFilter || "All", q = (state.dlQuery || "").trim();
+    const filtered = src !== "All" || q;
+    let r, sqlText = "";
+    if(filtered){
+      // SELECT … WHERE in the database
+      r = await load(`items_${u.student_id}_${src}_${q}`, () => DB().searchItems(u.student_id, {source: src === "All" ? null : src, q}));
+      const lmsExtra = LMS.data(u.student_id).items.filter(i => (src === "All" || src === "LMS") && (!q || i.title.toLowerCase().includes(q.toLowerCase())));
+      if(r.data) r.data = [...r.data, ...lmsExtra].sort((a,b) => new Date(a.due_at) - new Date(b.due_at));
+      sqlText = `SELECT * FROM academic_item\nWHERE student_id = ${u.student_id}` + (src !== "All" ? ` AND source = ${sqlStr(src)}` : "") +
+                (q ? ` AND title ILIKE ${sqlStr("%" + q + "%")}` : "") + `\nORDER BY due_at;`;
+    } else {
+      r = await load(`items_${u.student_id}`, () => itemsWithLms(u.student_id));
+    }
+    const all = filtered ? (await load(`items_${u.student_id}`, () => itemsWithLms(u.student_id))).data || [] : (r.data || []);
+    const items = r.data || [];
+    $("#dlFilters").innerHTML = ["All","LMS","Learn","Outlook"].map(x => `<button class="chip ${x===src?"active":""}" data-src="${x}">${x==="All"?"All sources":sourceIcon(x)+" "+x} (${x==="All"?all.length:all.filter(i=>i.source===x).length})</button>`).join("");
     const upcoming = items.filter(i => urgencyOf(i) !== "past");
     const order = {urgent:0, soon:1, normal:2};
     upcoming.sort((a,b) => (order[urgencyOf(a)]-order[urgencyOf(b)]) || (new Date(a.due_at)-new Date(b.due_at)));
     const past = items.filter(i => urgencyOf(i) === "past").sort((a,b) => new Date(b.due_at)-new Date(a.due_at));
     const in3 = upcoming.filter(i => new Date(i.due_at) - now() < 3*86400000);
     const list = state.deadlineTab === "upcoming" ? upcoming : past;
-    $("#main").innerHTML = `
+    $("#dlBody").innerHTML = `
       ${r.error ? errorBlock(r.error, run, r.cached) : ""}
-      <div class="filters">${["All","LMS","Learn","Outlook"].map(x => `<button class="chip ${x===src?"active":""}" data-src="${x}">${x==="All"?"All sources":sourceIcon(x)+" "+x} (${x==="All"?all.length:all.filter(i=>i.source===x).length})</button>`).join("")}</div>
+      ${filtered ? `<div class="card" style="border-left-color:var(--brand);padding:10px 14px">
+          <div class="row between"><b style="font-size:13.5px">🗄️ Search in the database</b><span class="pill blue">${items.length} found</span></div>
+          <pre style="margin:6px 0 0;font-size:12px;white-space:pre-wrap;color:var(--muted)">${esc(sqlText)}</pre>
+          <button class="btn ghost small" id="dlClear" style="margin-top:4px">✕ Clear search & filter</button></div>` : ""}
       <div class="seg"><button data-t="upcoming" class="${state.deadlineTab==="upcoming"?"active":""}">Upcoming (${upcoming.length})</button>
         <button data-t="past" class="${state.deadlineTab==="past"?"active":""}">Past (${past.length})</button></div>
-      ${state.deadlineTab==="upcoming" ? (in3.length
+      ${!filtered && state.deadlineTab==="upcoming" ? (in3.length
         ? `<p class="muted" style="margin:0 0 10px;font-size:13.5px">${in3.length} due in the next 3 days · most urgent on top · LMS, Learn and Outlook together</p>`
         : `<div class="banner ok">✅ You have no urgent deadlines in the next 3 days.</div>`) : ""}
-      ${list.length ? `<div class="list-grid">${list.map(itemCard).join("")}</div>` : `<div class="empty"><div class="big">📭</div>Nothing here.</div>`}`;
+      ${list.length ? `<div class="list-grid">${list.map(itemCard).join("")}</div>`
+                    : `<div class="empty"><div class="big">📭</div>${q ? `Nothing found for “${esc(q)}”.` : "Nothing here."}</div>`}`;
     document.querySelectorAll(".seg button").forEach(b => b.onclick = () => { state.deadlineTab = b.dataset.t; run(); });
     document.querySelectorAll("[data-src]").forEach(b => b.onclick = () => { state.sourceFilter = b.dataset.src; run(); });
+    const clr = $("#dlClear"); if(clr) clr.onclick = () => { state.sourceFilter = "All"; state.dlQuery = ""; $("#dlQ").value = ""; run(); };
     bindItemCards(); bindRetry(run);
   };
+  let t;
+  $("#dlQ").oninput = e => { clearTimeout(t); t = setTimeout(() => { state.dlQuery = e.target.value; run(); }, 350); };
+  $("#dlSearch").onsubmit = e => { e.preventDefault(); clearTimeout(t); state.dlQuery = $("#dlQ").value; run(); };
   run();
 };
 
@@ -1455,6 +1561,7 @@ SCREENS.setReminder = ({item}) => {
       try{
         const row = await DB().addReminder({student_id: state.user.student_id, reminder_title: item.title,
                                             remind_at: when.toISOString(), interval: o.interval, status: "scheduled"});
+        sqlToast(`INSERT INTO reminder (student_id, reminder_title, remind_at, interval, status)\nVALUES (${state.user.student_id}, ${sqlStr(item.title)}, ${sqlStr(when.toISOString())}, ${sqlStr(o.interval)}, 'scheduled')${row?.reminder_id ? `\n→ new reminder_id = ${row.reminder_id}` : ""}`);
         go("confirmed", {reminder: row || {reminder_title:item.title, remind_at:when.toISOString()}, item}, {replace:true});
       }catch(ex){
         err.innerHTML = `Could not save the reminder: ${esc(ex.message)}<br>Your choice is kept — click “Set Reminder” to try again.`;
@@ -1924,17 +2031,20 @@ SCREENS.reminders = async () => {
     const ms = $("#markSent"); if(ms) ms.onclick = async () => {
       ms.disabled = true;
       try{ const rows = await DB().markDueSent(u.student_id);
+           sqlToast(`UPDATE reminder SET status = 'sent'\nWHERE student_id = ${u.student_id} AND status = 'scheduled' AND remind_at < now();\n→ ${(rows||[]).length} row(s) updated`);
            (rows||[]).forEach(x => pushNotify("AITU Hub — Reminder", x.reminder_title)); run(); }
       catch(ex){ ms.disabled = false; toast("❌ " + esc(ex.message)); }
     };
     document.querySelectorAll("[data-cancel]").forEach(b => b.onclick = async () => {
       if(!await confirmModal({title:"Cancel this reminder?", text:"You will not get a push for it. You can set a new one any time.", okText:"Cancel reminder", danger:true})) return;
-      try{ await DB().updateReminder(Number(b.dataset.cancel), {status:"cancelled"}); toast("Reminder cancelled."); run(); }
+      try{ await DB().updateReminder(Number(b.dataset.cancel), {status:"cancelled"});
+           if(showSqlOn()) sqlToast(`UPDATE reminder SET status = 'cancelled'\nWHERE reminder_id = ${b.dataset.cancel};`); else toast("Reminder cancelled."); run(); }
       catch(ex){ toast("❌ " + esc(ex.message)); }
     });
     document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
       if(!await confirmModal({title:"Delete this reminder?", text:"It will be removed from the database. This cannot be undone.", okText:"Delete", danger:true})) return;
-      try{ await DB().deleteReminder(Number(b.dataset.del)); toast("🗑 Reminder deleted."); run(); }
+      try{ await DB().deleteReminder(Number(b.dataset.del));
+           if(showSqlOn()) sqlToast(`DELETE FROM reminder\nWHERE reminder_id = ${b.dataset.del};`); else toast("🗑 Reminder deleted."); run(); }
       catch(ex){ toast("❌ " + esc(ex.message)); }
     });
     bindRetry(run);
