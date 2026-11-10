@@ -726,11 +726,27 @@ function classifyLms(events){
 const LMS = {
   status(sid){ return store.get(lmsKey(sid), null); },
   data(sid){ return lmsMem[sid] || store.get(lmsCacheKey(sid), null) || {lessons:[], items:[], opens:[]}; },
-  available(){ return !!(window.hubNative && window.hubNative.fetchCalendar); },
+  /* "native": desktop app downloads it itself (link encrypted on this PC)
+     "server": web / phone — the Supabase database downloads it (link kept in a private table) */
+  mode(){ return (window.hubNative && window.hubNative.fetchCalendar) ? "native" : (sbConfig() ? "server" : null); },
+  available(){ return !!this.mode(); },
   async download(url){
     const text = await window.hubNative.fetchCalendar(url);
     const parsed = classifyLms(parseICS(text));
     return parsed;
+  },
+  async rpc(fn, body = {}){
+    try{ return await sb(`rpc/${fn}`, {method:"POST", body}); }
+    catch(e){
+      const m = String(e.message || e);
+      if(/404|PGRST202|could not find the function/i.test(m)) throw new Error("The LMS functions are not installed in the database yet (run supabase/8-lms-web.sql).");
+      throw new Error(m.replace(/^\d{3} — /, ""));
+    }
+  },
+  async serverDownload(){
+    const text = await this.rpc("get_my_lms_calendar");
+    if(!text) return null;
+    return classifyLms(parseICS(text));
   },
   save(sid, parsed, extra = {}){
     lmsMem[sid] = parsed; store.set(lmsCacheKey(sid), parsed);
@@ -739,8 +755,15 @@ const LMS = {
       counts: {lessons: parsed.lessons.length, items: parsed.items.length, opens: parsed.opens.length}});
   },
   async connect(sid, url){
-    if(!this.available()) throw new Error("LMS import works in the desktop app.");
+    if(!this.available()) throw new Error("Log in with your AITU Hub account to connect the LMS calendar.");
     if(!validLmsUrl(url)) throw new Error("Paste the calendar link from LMS (lms.astanait.edu.kz/calendar/export_execute.php?…authtoken=…).");
+    if(this.mode() === "server"){
+      await this.rpc("set_my_lms_url", {p_url: url.trim()});
+      const parsed = await this.serverDownload();
+      if(!parsed) throw new Error("The link was saved, but the calendar could not be downloaded.");
+      this.save(sid, parsed, {server:true});
+      return parsed;
+    }
     const parsed = await this.download(url.trim());
     const enc = await window.hubNative.encrypt(url.trim());
     if(!enc) throw new Error("This computer cannot encrypt the link safely, so it was not saved.");
@@ -748,14 +771,27 @@ const LMS = {
     return parsed;
   },
   async sync(sid){
-    const st = this.status(sid);
+    let st = this.status(sid);
+    if(this.mode() === "server"){
+      if(!st || !st.server){                       // first time on this device: is it connected on the server?
+        const info = await this.rpc("my_lms_status").catch(() => null);
+        if(!info || !info.connected) return null;
+        st = {...(st || {}), server:true}; store.set(lmsKey(sid), st);
+      }
+      try{ const parsed = await this.serverDownload(); if(!parsed){ this.disconnectLocal(sid); return null; } this.save(sid, parsed, {server:true}); return parsed; }
+      catch(e){ store.set(lmsKey(sid), {...st, error: e.message || String(e)}); throw e; }
+    }
     if(!st || !st.enc || !this.available()) return null;
     const url = await window.hubNative.decrypt(st.enc);
     if(!url){ store.set(lmsKey(sid), {...st, error:"The saved link could not be read. Connect the LMS calendar again."}); return null; }
     try{ const parsed = await this.download(url); this.save(sid, parsed); return parsed; }
     catch(e){ store.set(lmsKey(sid), {...st, error: e.message || String(e)}); throw e; }
   },
-  disconnect(sid){ store.del(lmsKey(sid)); store.del(lmsCacheKey(sid)); delete lmsMem[sid]; }
+  disconnectLocal(sid){ store.del(lmsKey(sid)); store.del(lmsCacheKey(sid)); delete lmsMem[sid]; },
+  async disconnect(sid){
+    if(this.mode() === "server") await this.rpc("clear_my_lms_url");
+    this.disconnectLocal(sid);
+  }
 };
 
 /* merge LMS data with database data (avoid duplicates) */
@@ -814,7 +850,8 @@ async function lessonsWithLms(sid){
 
 let lmsTimer = null, lmsBusy = false;
 async function lmsAutoSync({rerender = true} = {}){
-  if(!state.user || lmsBusy || !LMS.available() || !LMS.status(state.user.student_id)?.enc) return;
+  if(!state.user || lmsBusy || !LMS.available()) return;
+  if(LMS.mode() === "native" && !LMS.status(state.user.student_id)?.enc) return;
   lmsBusy = true;
   try{
     await LMS.sync(state.user.student_id);
@@ -840,7 +877,9 @@ function openLmsDialog(onDone){
     <label for="lmsUrl">Calendar link</label>
     <input id="lmsUrl" type="text" placeholder="https://lms.astanait.edu.kz/calendar/export_execute.php?userid=…&authtoken=…" autocomplete="off" spellcheck="false">
     <div class="field-error" id="lmsErr" role="alert"></div>
-    <p class="muted" style="font-size:12.5px;margin:4px 0 0">🔒 The link is personal. It is saved <b>encrypted on this computer only</b> and used only to download your LMS calendar. Never share it.</p>
+    <p class="muted" style="font-size:12.5px;margin:4px 0 0">🔒 The link is personal. ${LMS.mode() === "native"
+      ? "It is saved <b>encrypted on this computer only</b>"
+      : "It is saved in a <b>private table of the Hub database</b> that nobody can read — not even through the app"} and used only to download your LMS calendar. Never share it.</p>
     <button class="btn primary" id="lmsOk">Connect</button>
     <button class="btn ghost" id="lmsCancel">Cancel</button></div>`;
   $("#phone").appendChild(m);
@@ -867,17 +906,17 @@ function timeAgo(iso){
 }
 /* status card shown at the top of Schedule */
 function lmsCardHtml(sid){
-  if(!LMS.available()) return `<div class="card" style="border-left-color:var(--line)"><div class="row between"><b>📅 LMS calendar</b><span class="pill grey">desktop app only</span></div>
-    <div class="muted" style="font-size:13px;margin-top:4px">Importing your LMS calendar works in the installed AITU Hub app.</div></div>`;
+  if(!LMS.available()) return `<div class="card" style="border-left-color:var(--line)"><div class="row between"><b>📅 LMS calendar</b><span class="pill grey">not available</span></div>
+    <div class="muted" style="font-size:13px;margin-top:4px">Log in with your AITU Hub account (not demo data) to connect your LMS calendar.</div></div>`;
   const st = LMS.status(sid);
-  if(!st || !st.enc) return `<div class="card" style="border-left-color:var(--brand)">
+  if(!st || !(st.enc || st.server)) return `<div class="card" style="border-left-color:var(--brand)">
     <div class="row between"><b>📅 LMS calendar</b><span class="pill grey">not connected</span></div>
     <div class="muted" style="font-size:13.5px;margin:4px 0 8px">Add your lessons and deadlines from LMS automatically.</div>
     <button class="btn primary small" id="lmsConnect">+ Connect LMS calendar</button></div>`;
   const c = st.counts || {};
   return `<div class="card" style="border-left-color:${st.error ? "var(--red)" : "var(--green)"}">
     <div class="row between"><b>📅 LMS calendar</b>${st.error ? `<span class="pill red">sync failed</span>` : `<span class="pill green">connected</span>`}</div>
-    <div class="muted" style="font-size:13px;margin:4px 0 8px">${c.lessons ?? 0} lessons · ${c.items ?? 0} deadlines · updated ${st.lastSync ? timeAgo(st.lastSync) : "—"} · auto-update every 30 min
+    <div class="muted" style="font-size:13px;margin:4px 0 8px">${c.lessons ?? 0} lessons · ${c.items ?? 0} deadlines · updated ${st.lastSync ? timeAgo(st.lastSync) : "—"} · auto-update every 30 min${st.server ? " · works on all your devices" : ""}
       ${st.error ? `<br><span style="color:var(--red)">${esc(st.error)}</span>` : ""}</div>
     <div class="row" style="gap:8px"><button class="btn secondary small" id="lmsSync">↻ Sync now</button>
       <button class="btn ghost small" id="lmsChange">Change link</button>
@@ -894,7 +933,9 @@ function bindLmsCard(sid, rerun){
   };
   const off = $("#lmsOff"); if(off) off.onclick = async () => {
     if(!await confirmModal({title:"Disconnect LMS calendar?", text:"Imported LMS lessons and deadlines will disappear from the Hub and the saved link will be deleted from this computer.", okText:"Disconnect", danger:true})) return;
-    LMS.disconnect(sid); toast("LMS calendar disconnected."); rerun();
+    try{ await LMS.disconnect(sid); toast("LMS calendar disconnected."); }
+    catch(e){ toast("❌ " + esc(e.message || e)); }
+    rerun();
   };
 }
 
@@ -1038,7 +1079,7 @@ SCREENS.connect = () => {
 
     <h2 style="margin-top:28px">About</h2>
     <div class="card">
-      <b>AITU Student Hub</b> 1.6 · Alua Bolat, ST-2606<br>
+      <b>AITU Student Hub</b> 1.7 · Alua Bolat, ST-2606<br>
       <span class="muted" style="font-size:13.5px">Campus floor plans: <a href="https://github.com/Yuujiso/aitumap" target="_blank" rel="noopener">aitumap</a> © 2023 Yuujiso, MIT License.
       Some ideas inspired by the aitu_lighthouse Telegram bot.</span>
     </div>`;

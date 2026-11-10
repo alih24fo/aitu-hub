@@ -1,6 +1,6 @@
 /* AITU Student Hub — service worker: keeps the app shell offline.
    Database requests (Supabase) are never cached here. */
-const CACHE = "aitu-hub-v1.6";
+const CACHE = "aitu-hub-v1.7";
 const SHELL = ["./", "index.html", "map-data.js", "manifest.webmanifest",
                "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png"];
 
