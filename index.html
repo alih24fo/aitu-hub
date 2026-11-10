@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#132a6b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AITU Hub">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://*.supabase.co">
+<title>AITU Student Hub</title>
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --ink:#18212f; --muted:#64708a; --line:#e2e6ee;
+    --brand:#1f4fd1; --brand-soft:#e8eefc;
+    --red:#d93a3a; --red-soft:#fdeceb; --yellow:#c98a00; --yellow-soft:#fff5d9;
+    --green:#1d8a52; --green-soft:#e4f5ec; --grey-soft:#f1f3f7;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+  .app{display:flex;height:100vh;position:relative}
+  .sidebar{width:240px;background:#132a6b;color:#fff;display:flex;flex-direction:column;flex-shrink:0}
+  .app.no-sidebar .sidebar{display:none}
+  .brand{padding:22px 20px 18px;font-size:19px;font-weight:750;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1)}
+  .brand small{display:block;font-size:11.5px;font-weight:500;opacity:.65}
+  nav.tabs{display:flex;flex-direction:column;padding:12px 10px;gap:4px;flex:1}
+  nav.tabs button{border:0;background:none;color:rgba(255,255,255,.75);padding:11px 14px;border-radius:10px;font-size:15px;cursor:pointer;
+                  display:flex;align-items:center;gap:12px;text-align:left}
+  nav.tabs button .ti{font-size:18px;width:22px;text-align:center}
+  nav.tabs button:hover{background:rgba(255,255,255,.08);color:#fff}
+  nav.tabs button.active{background:#fff;color:#132a6b;font-weight:650}
+  .side-user{padding:14px 18px;border-top:1px solid rgba(255,255,255,.1);font-size:13px}
+  .side-user b{display:block;font-size:14px}
+  .side-user span{opacity:.65}
+  .content{flex:1;display:flex;flex-direction:column;min-width:0}
+  header.top{background:#fff;color:var(--ink);padding:14px 28px;display:flex;align-items:center;gap:12px;min-height:64px;flex-shrink:0;border-bottom:1px solid var(--line)}
+  header.top h1{font-size:21px;margin:0;flex:1;font-weight:700}
+  .icon-btn{background:var(--grey-soft);border:1px solid var(--line);color:var(--ink);border-radius:10px;height:38px;min-width:38px;padding:0 14px;
+            font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .icon-btn:hover{border-color:var(--brand);color:var(--brand)}
+  .status-strip{font-size:12.5px;padding:6px 28px;display:flex;align-items:center;gap:6px;background:#fafbfd;border-bottom:1px solid var(--line);flex-shrink:0;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  main{flex:1;overflow-y:auto;padding:24px 28px 40px}
+  .wrap{max-width:1100px;margin:0 auto}
+  .narrow{max-width:640px;margin:0 auto}
+  .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,1.15fr);gap:24px;align-items:start}
+  .sticky{position:sticky;top:0}
+  .list-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:0 14px}
+  @media (max-width:1100px){ .sidebar{width:200px} }
+
+  /* ---------------- phone layout (PWA on iPhone / Android) ---------------- */
+  @media (max-width:760px){
+    .app{flex-direction:column;height:100dvh}
+    .sidebar{position:fixed;left:0;right:0;bottom:0;width:auto;z-index:50;flex-direction:row;
+             padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 16px rgba(10,20,50,.18)}
+    .brand,.side-user{display:none}
+    nav.tabs{flex-direction:row;padding:5px 4px;gap:0;overflow-x:auto;flex:1}
+    nav.tabs button{flex:1;flex-direction:column;gap:2px;padding:6px 2px;font-size:10.5px;border-radius:10px;min-width:54px;text-align:center;justify-content:center}
+    nav.tabs button .ti{font-size:20px;width:auto}
+    nav.tabs button.active{background:rgba(255,255,255,.16);color:#fff}
+    header.top{padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));min-height:54px;gap:8px}
+    header.top h1{font-size:18px}
+    .icon-btn{height:34px;padding:0 10px;font-size:13px}
+    .status-strip{padding:5px 14px;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+    main{padding:14px 14px calc(92px + env(safe-area-inset-bottom))}
+    .app.no-sidebar main{padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+    .cols,.map-layout,.list-grid{grid-template-columns:minmax(0,1fr) !important}
+    .cols > div,.map-layout > div{min-width:0}
+    .login-shell{grid-template-columns:1fr;margin:0;border-radius:16px}
+    .login-hero{padding:20px 22px}
+    .login-hero h2{font-size:22px;margin:6px 0}
+    .login-hero ul,.login-hero p{display:none}
+    .login-form{padding:20px}
+    .grid2{grid-template-columns:1fr 1fr !important;gap:10px}
+    .tile{padding:12px}
+    .sticky{position:static}
+    .map-big{aspect-ratio:924/600;max-height:none;min-height:260px}
+    #schedMap{aspect-ratio:1.6;width:100%;min-height:0}
+    .map-big{width:100%}
+    .search-box{flex:1 1 100% !important;max-width:none !important}
+    .cm-hint{display:none}
+    .legend{font-size:11px}
+    .toast{left:12px;right:12px;width:auto;bottom:calc(80px + env(safe-area-inset-bottom))}
+    .modal-back{align-items:flex-end}
+    .modal{width:100% !important;border-radius:18px 18px 0 0;max-height:92dvh;overflow:auto;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+    .kv{grid-template-columns:96px 1fr}
+    .floor-btns button{padding:8px 10px}
+    .search-box{max-width:none;flex-basis:100%}
+    input[type=email],input[type=password],input[type=text],input[type=datetime-local]{font-size:16px}  /* no auto-zoom on iPhone */
+    h2{font-size:19px}
+  }
+  @media (max-width:900px){ .cols{grid-template-columns:1fr} }
+  .login-shell{min-height:100%;display:grid;grid-template-columns:1fr 1fr;max-width:1000px;margin:20px auto;background:#fff;border-radius:20px;overflow:hidden;border:1px solid var(--line);box-shadow:0 10px 40px rgba(20,30,60,.08)}
+  .login-hero{background:linear-gradient(160deg,#1f4fd1,#132a6b);color:#fff;padding:44px 40px}
+  .login-hero h2{font-size:30px;margin:14px 0 10px}
+  .login-hero li{margin:10px 0;opacity:.9}
+  .login-form{padding:40px}
+  @media (max-width:860px){ .login-shell{grid-template-columns:1fr} }
+
+  h2{font-size:20px;margin:4px 0 12px}
+  h3{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:18px 0 8px}
+  p.muted,.muted{color:var(--muted)}
+  .card{background:var(--card);border-radius:var(--radius);padding:14px;margin-bottom:10px;border:1px solid var(--line);border-left:5px solid var(--line)}
+  .card.clickable{cursor:pointer;transition:transform .08s, box-shadow .12s}
+  .card.clickable:hover{box-shadow:0 4px 14px rgba(20,30,60,.08)}
+  .card.clickable:active{transform:scale(.99)}
+  .card.urgent{border-left-color:var(--red);background:var(--red-soft)}
+  .card.soon{border-left-color:var(--yellow)}
+  .card.normal{border-left-color:var(--green)}
+  .card.past{border-left-color:#b9c0cc;opacity:.75}
+  .card .title{font-weight:650;font-size:16px;margin-bottom:4px}
+  .card .meta{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 12px}
+  .row{display:flex;align-items:center;gap:8px}
+  .between{justify-content:space-between}
+  .pill{font-size:11.5px;font-weight:650;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .pill.red{background:var(--red);color:#fff}
+  .pill.yellow{background:var(--yellow-soft);color:var(--yellow)}
+  .pill.green{background:var(--green-soft);color:var(--green)}
+  .pill.grey{background:var(--grey-soft);color:var(--muted)}
+  .pill.blue{background:var(--brand-soft);color:var(--brand)}
+
+  .btn{display:block;width:100%;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:650;cursor:pointer;margin-top:10px;text-align:center;text-decoration:none}
+  .btn.primary{background:var(--brand);color:#fff}
+  .btn.primary:hover{background:#1a43b4}
+  .btn.secondary{background:#fff;color:var(--brand);border:1.5px solid var(--brand)}
+  .btn.danger{background:#fff;color:var(--red);border:1.5px solid var(--red)}
+  .btn.ghost{background:none;color:var(--muted);font-weight:500}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.small{display:inline-block;width:auto;padding:8px 12px;font-size:13.5px;margin-top:0}
+
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 6px}
+  input[type=email],input[type=password],input[type=text],input[type=datetime-local]{width:100%;padding:13px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;background:#fff;color:var(--ink)}
+  input:focus{outline:none;border-color:var(--brand)}
+  .field-error{color:var(--red);font-size:13px;margin-top:6px;min-height:18px}
+
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+  .tile{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px 14px;cursor:pointer;text-align:left}
+  .tile:hover{border-color:var(--brand)}
+  .tile .big{font-size:24px}
+  .tile .tname{font-weight:650;margin-top:6px}
+  .tile .tsub{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+  .option{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:13px;margin-bottom:8px;cursor:pointer}
+  .option.selected{border-color:var(--brand);background:var(--brand-soft)}
+  .option.disabled{opacity:.45;cursor:not-allowed}
+  .option .radio{width:18px;height:18px;border-radius:50%;border:2px solid #9aa4b8;flex-shrink:0}
+  .option.selected .radio{border:6px solid var(--brand)}
+  .option .osub{font-size:12.5px;color:var(--muted)}
+
+  .banner{border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:14px}
+  .banner.warn{background:var(--yellow-soft);color:#7a5600}
+  .banner.alert{background:var(--red);color:#fff}
+  .banner.info{background:var(--brand-soft);color:#173a99}
+  .banner.ok{background:var(--green-soft);color:#14603a}
+
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px}
+  .chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
+  .chip.active{background:var(--brand);border-color:var(--brand);color:#fff}
+
+  .seg{display:flex;background:#dfe4ee;border-radius:10px;padding:3px;margin-bottom:12px}
+  .seg button{flex:1;border:0;background:none;padding:8px;border-radius:8px;font-size:13.5px;cursor:pointer;color:var(--muted)}
+  .seg button.active{background:#fff;color:var(--ink);font-weight:650;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+  .empty{text-align:center;padding:30px 10px;color:var(--muted)}
+  .empty .big{font-size:40px}
+  .success{text-align:center;padding:30px 6px}
+  .success .check{width:84px;height:84px;border-radius:50%;background:var(--green);color:#fff;font-size:44px;display:flex;align-items:center;justify-content:center;margin:10px auto 18px}
+  .kv{display:grid;grid-template-columns:110px 1fr;gap:8px 10px;font-size:14px}
+  .kv div:nth-child(odd){color:var(--muted)}
+  .spinner{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;margin:40px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .toast{position:absolute;right:24px;width:360px;bottom:24px;background:#18212f;color:#fff;border-radius:12px;padding:12px 14px;font-size:14px;
+         box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:30;display:flex;gap:10px;align-items:flex-start;animation:drop .25s ease}
+  @keyframes drop{from{transform:translateY(-12px);opacity:0}to{transform:none;opacity:1}}
+  .modal-back{position:fixed;inset:0;background:rgba(15,20,35,.45);display:flex;align-items:center;justify-content:center;z-index:40}
+  .modal{background:#fff;width:420px;border-radius:16px;padding:24px}
+  .modal h3{color:var(--ink);text-transform:none;letter-spacing:0;font-size:18px;margin:0 0 6px}
+  .pick{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer;background:#fff;font-size:13.5px}
+  .pick:hover{border-color:var(--brand)}
+  code{background:var(--grey-soft);padding:1px 5px;border-radius:5px;font-size:12.5px}
+  svg text{font-family:inherit}
+
+  /* campus map */
+  .cm{position:relative;background:#f4f6fa;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;user-select:none}
+  .cm-svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+  .cm-svg.dragging{cursor:grabbing}
+  .cm-zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+  .cm-zoom button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:19px;cursor:pointer;color:var(--ink);box-shadow:0 2px 6px rgba(20,30,60,.08)}
+  .cm-zoom button:hover{border-color:var(--brand);color:var(--brand)}
+  .cm-hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);background:rgba(255,255,255,.85);padding:4px 8px;border-radius:8px}
+  .cm .bg{stroke:#aab3c4;fill:#e3e8f0}
+  .cm .map-groups-stairs{fill:#fff;pointer-events:none}
+  .cm .map-groups-stairs polygon,.cm .map-groups-stairs polyline,.cm .map-groups-stairs-fill polygon,.cm .map-groups-stairs-fill polyline{stroke:#aab3c4}
+  .cm .map-groups-stairs-fill{fill:#e3e8f0;pointer-events:none}
+  .cm .map-groups-stairs g path:nth-child(1),.cm .map-groups-stairs-fill g path:nth-child(1),.cm .map-groups-techs-icon path:nth-child(1),.cm .map-groups-wcs-icon path:nth-child(1){fill:#1f4fd1}
+  .cm .map-groups-stairs g path:nth-child(2),.cm .map-groups-stairs-fill g path:nth-child(2),.cm .map-groups-techs-icon path:nth-child(2),.cm .map-groups-wcs-icon path:nth-child(2),.cm .map-groups-escapes-icon path:nth-child(2){fill:#fff}
+  .cm .map-groups-escapes-icon path:nth-child(1){fill:#1d8a52}
+  .cm .map-groups-rooms g line,.cm .map-groups-rooms g polygon,.cm .map-groups-rooms g polyline,
+  .cm .map-groups-rooms-vk g polygon,.cm .map-groups-rooms-vk g polyline,.cm .map-groups-rooms-vk g line{stroke:#5d7fc9;stroke-width:.6;fill:#8fb0f2;cursor:pointer;transition:fill .15s}
+  .cm .map-groups-rooms-vk g polygon{fill:#7fc08a}
+  .cm .map-groups-rooms g:hover polygon,.cm .map-groups-rooms g:hover polyline{fill:#6f97ea}
+  .cm .map-groups-rooms g path,.cm .map-groups-rooms g text,.cm .map-groups-rooms-vk g path,.cm .map-groups-rooms-vk g text{fill:#fff;stroke:#fff;stroke-width:.1;pointer-events:none}
+  .cm .map-groups-techs polygon,.cm .map-groups-techs polyline,.cm .map-groups-escapes polygon,.cm .map-groups-escapes polyline{stroke:#aab3c4;fill:#cfd5df;pointer-events:none}
+  .cm .map-groups-wcs polyline{stroke:#aab3c4;fill:#c9b3d3;pointer-events:none}
+  .cm .map-groups-gym path,.cm .map-groups-gym line,.cm .map-groups-gym polygon,.cm .map-groups-gym polyline{stroke:#5d7fc9;fill:#8fb0f2}
+  .cm .map-groups-gym-pole path,.cm .map-groups-gym-pole line,.cm .map-groups-gym-pole polygon{stroke:#5d7fc9;stroke-width:.75;fill:none}
+  .cm .map-groups-walls path,.cm .map-groups-walls polyline,.cm .map-groups-walls polygon,.cm .map-groups-walls rect,.cm .map-groups-walls line{stroke:#aab3c4;fill:#e3e8f0}
+  .cm .map-groups-void path,.cm .map-groups-void polyline,.cm .map-groups-void polygon,.cm .map-groups-void rect,.cm .map-groups-void line{stroke:#aab3c4;fill:#f4f6fa}
+  .cm .map-groups-coworking-atameken path,.cm .map-groups-coworking-atameken polygon,.cm .map-groups-coworking-atameken polyline{stroke:#aab3c4;fill:#e3e8f0}
+  .cm .label-huge{fill:#8a94a8}
+  .cm .label,.cm .label-white{fill:#fff}
+  .cm [data-name^="MEDIKER"] polyline,.cm [data-name^="MEDIKER"] polygon{fill:#8fd3c0 !important;stroke:#4f9c86 !important;cursor:pointer}
+  .cm [data-name^="DININGHALL"] polyline,.cm [data-name^="DININGHALL"] polygon{fill:#f6c98f !important;stroke:#c08a44 !important}
+  .cm [data-name^="LIBRARY"] polyline,.cm [data-name^="LIBRARY"] polygon{fill:#b9a7e8 !important;stroke:#7d68bf !important}
+  /* state colours — order matters: lesson < search result < selected */
+  .cm .cm-target polygon,.cm .cm-target polyline{fill:#d93a3a !important;stroke:#a52020 !important;animation:roompulse 1.4s ease-in-out infinite}
+  .cm .cm-found polygon,.cm .cm-found polyline{fill:#f0b429 !important;stroke:#b7860b !important;animation:none}
+  .cm .cm-selected polygon,.cm .cm-selected polyline{fill:#1d8a52 !important;stroke:#0d4a2b !important;stroke-width:1.6 !important;animation:none}
+  .cm .cm-selected.cm-target polygon,.cm .cm-selected.cm-target polyline{stroke:#d93a3a !important;stroke-width:3 !important}
+  .cm-badge{position:absolute;left:10px;top:10px;background:rgba(19,42,107,.92);color:#fff;font-size:13px;font-weight:650;padding:6px 10px;border-radius:9px;pointer-events:none}
+  .cm-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(244,246,250,.78);text-align:center;padding:20px;font-size:14px;color:var(--ink)}
+  .cm-overlay b{display:block;font-size:16px;margin-bottom:4px}
+  @keyframes roompulse{50%{opacity:.6}}
+  .map-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start}
+  .map-big{height:auto;aspect-ratio:924/430;max-height:calc(100vh - 300px);min-height:300px;width:100%}
+  #main.wrap.wide{max-width:1500px}
+  .results{min-height:31px}
+  .legend{gap:6px 12px;font-size:12px}
+  .legend .credit{flex-basis:100%;text-align:right;font-size:11px}
+  .cm.compact .cm-zoom{flex-direction:row;top:auto;bottom:8px;right:8px}
+  .cm.compact .cm-zoom button{width:30px;height:30px;font-size:16px}
+  .cm.compact .cm-badge{font-size:12px;padding:4px 8px}
+  #schedMap{aspect-ratio:2.1;height:auto;min-height:200px}
+  @media (max-width:1180px){ .map-layout{grid-template-columns:minmax(0,1fr) 260px} }
+  .floor-btns{display:flex;gap:6px}
+  .floor-btns button{border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:9px 14px;cursor:pointer;font-size:14px}
+  .floor-btns button.active{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}
+  .search-box{position:relative;flex:1;max-width:360px}
+  .search-box input{padding-left:36px}
+  .search-box .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+  .results{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12.5px;color:var(--muted);margin-top:10px}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="app" id="phone">
+  <aside class="sidebar">
+    <div class="brand">🎓 <div>AITU Student Hub<small>All your studies in one place</small></div></div>
+    <nav class="tabs" id="tabs"></nav>
+    <div class="side-user" id="sideUser"></div>
+  </aside>
+  <div class="content">
+    <header class="top" id="header"></header>
+    <div class="status-strip" id="status"></div>
+    <main id="mainScroll"><div id="main" class="wrap"></div></main>
+  </div>
+</div>
+
+<script src="map-data.js"></script>
+<script>
+/* =====================================================================
+   AITU Student Hub — functional prototype (Assignment 5)
+   Data source: Supabase (REST API) — tables from Assignment 4:
+   student, academic_item, reminder, lesson, room, location_log
+   If no Supabase keys are set, the app runs on built-in demo data
+   with exactly the same tables and columns.
+   ===================================================================== */
+
+/* ---- Put your keys here OR enter them on the "Connect Supabase" screen ---- */
+const SUPABASE_URL = "https://ihudizfrgqrunfnsbnir.supabase.co";       // e.g. "https://abcdxyz.supabase.co"
+const SUPABASE_ANON_KEY = "sb_publishable_FCEvMkEz_-LsxYAMJrgCUg_laqByfas";  // anon public key (starts with eyJ...)
+
+/* ------------------------------ helpers ------------------------------ */
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} },
+  del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+};
+const now = () => new Date();
+const fmtDate = d => new Date(d).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
+const fmtTime = d => new Date(d).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
+const fmtDT = d => d ? `${fmtDate(d)}, ${fmtTime(d)}` : "—";
+const dayKey = d => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`; };
+function timeLeft(due){
+  if(!due) return "no date";
+  let ms = new Date(due) - now();
+  if(ms < 0) return "overdue";
+  const m = Math.floor(ms/60000), d = Math.floor(m/1440), h = Math.floor((m%1440)/60), mm = m%60;
+  if(d>0) return `${d}d ${h}h left`;
+  if(h>0) return `${h}h ${mm}m left`;
+  return `${mm}m left`;
+}
+function urgencyOf(item){
+  if(item.due_at && new Date(item.due_at) < now()) return "past";
+  const u = (item.urgency||"").toLowerCase();
+  if(["urgent","soon","normal"].includes(u)) return u;
+  const h = (new Date(item.due_at) - now())/3600000;
+  return h < 24 ? "urgent" : h < 72 ? "soon" : "normal";
+}
+const urgencyPill = u => ({urgent:'<span class="pill red">URGENT</span>',soon:'<span class="pill yellow">Soon</span>',
+                           normal:'<span class="pill green">Normal</span>',past:'<span class="pill grey">Past</span>'}[u]);
+const sourceIcon = s => ({LMS:"📘",Learn:"🎓",Outlook:"✉️",DU:"🗓️"}[s] || "📄");
+const typeLabel = t => ({assignment:"Assignment","online lesson":"Online lesson",email:"Email",quiz:"Quiz"}[(t||"").toLowerCase()] || t || "Item");
+
+/* =========================== DATA LAYER ============================== */
+/* Supabase REST (PostgREST) — no library needed, plain fetch */
+function sbConfig(){
+  if(store.get("hub_force_demo", false)) return null;
+  const saved = store.get("hub_sb", null);
+  if(saved && saved.url && saved.key) return saved;
+  if(SUPABASE_URL && SUPABASE_ANON_KEY) return {url:SUPABASE_URL.replace(/\/+$/,""), key:SUPABASE_ANON_KEY};
+  return null;
+}
+/* ---------------- Supabase Auth: private student accounts ----------------
+   Password is checked by Supabase (stored hashed by Supabase, never in our tables).
+   After login every database request carries the student's own access token,
+   and Row Level Security in the database lets a student see ONLY their own rows. */
+const SESSION_KEY = "hub_session";
+function getSession(){ try{ return JSON.parse(sessionStorage.getItem(SESSION_KEY)) || store.get(SESSION_KEY, null); }catch(e){ return store.get(SESSION_KEY, null); } }
+function saveSession(sess, remember){
+  const data = {access_token:sess.access_token, refresh_token:sess.refresh_token,
+                expires_at: Date.now() + (sess.expires_in || 3600) * 1000, email: sess.user?.email, remember};
+  if(remember){ store.set(SESSION_KEY, data); try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
+  else { try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); }catch(e){} store.del(SESSION_KEY); }
+}
+function clearSession(){ store.del(SESSION_KEY); try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){} }
+
+async function authCall(path, body, token){
+  const c = sbConfig();
+  const headers = {apikey:c.key, "Content-Type":"application/json"};
+  if(token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${c.url}/auth/v1/${path}`, {method: body === undefined ? "GET" : "POST", headers, body: body === undefined ? undefined : JSON.stringify(body)});
+  let j = {}; try{ j = await res.json(); }catch(e){}
+  if(!res.ok){
+    const raw = j.msg || j.error_description || j.message || j.error || `HTTP ${res.status}`;
+    const e = new Error(raw); e.status = res.status; e.code = j.error_code || j.code || j.error; throw e;
+  }
+  return j;
+}
+const Auth = {
+  signIn: (email, password) => authCall("token?grant_type=password", {email, password}),
+  signUp: (email, password) => authCall("signup", {email, password}),
+  settings: () => authCall("settings"),
+  async signOut(){ const s = getSession(); clearSession(); if(s && sbConfig()){ try{ await authCall("logout", {}, s.access_token); }catch(e){} } },
+  async freshToken(force = false){
+    const s = getSession(); if(!s) return null;
+    if(!force && s.expires_at - Date.now() > 60000) return s.access_token;
+    try{ const n = await authCall("token?grant_type=refresh_token", {refresh_token: s.refresh_token}); saveSession(n, s.remember); return n.access_token; }
+    catch(e){ return null; }
+  }
+};
+/* friendly texts for Supabase Auth errors */
+function authMessage(e){
+  const m = (e.message || "").toLowerCase();
+  if(m.includes("invalid login") || e.code === "invalid_credentials" || e.code === "invalid_grant") return "Wrong e-mail or password.";
+  if(m.includes("already registered") || e.code === "user_already_exists") return "An account with this e-mail already exists — use “Log in”.";
+  if(m.includes("database error") || m.includes("not an aitu")) return "This e-mail is not in the AITU Hub student list.";
+  if(m.includes("not authorized") || m.includes("sending confirmation") || e.code === "email_address_not_authorized") return "Self-registration is turned off. Ask the administrator for your account.";
+  if(m.includes("email not confirmed")) return "E-mail is not confirmed. In Supabase turn off Authentication → Email → “Confirm email”.";
+  if(m.includes("password")) return "Password is too weak — use at least 8 characters.";
+  if(m.includes("rate limit") || e.status === 429) return "Too many attempts. Wait a minute and try again.";
+  if(m.includes("failed to fetch")) return "No connection to the server. Check the internet.";
+  return e.message;
+}
+function sessionExpired(){
+  clearSession(); state.user = null; store.del("hub_user");
+  toast("🔒 Your session ended. Please log in again.");
+  go("login", {}, {root:true});
+}
+
+async function sb(path, {method="GET", body, prefer} = {}, retried = false){
+  const c = sbConfig();
+  const headers = {apikey:c.key, "Content-Type":"application/json"};
+  const token = await Auth.freshToken();
+  if(token) headers.Authorization = `Bearer ${token}`;
+  else if(!c.key.startsWith("sb_")) headers.Authorization = `Bearer ${c.key}`;   // legacy anon JWT
+  if(prefer) headers.Prefer = prefer;
+  const res = await fetch(`${c.url}/rest/v1/${path}`, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  if(res.status === 401 && token && !retried){
+    const t2 = await Auth.freshToken(true);
+    if(t2) return sb(path, {method, body, prefer}, true);
+    sessionExpired(); throw new Error("Session expired");
+  }
+  if(!res.ok){
+    let msg = `${res.status}`;
+    try{ const j = await res.json(); msg += ` — ${j.message || j.hint || JSON.stringify(j)}`; }catch(e){}
+    throw new Error(msg);
+  }
+  if(res.status === 204) return null;
+  const t = await res.text(); return t ? JSON.parse(t) : null;
+}
+const enc = encodeURIComponent;
+
+const SupabaseDB = {
+  name: "Supabase",
+  students: () => sb("student?select=student_id,full_name,email,group_code&order=student_id&limit=50"),
+  studentByEmail: email => sb(`student?select=student_id,full_name,email,group_code,created_at&email=ilike.${enc(email.trim())}&limit=1`).then(r => r[0] || null),
+  items: sid => sb(`academic_item?select=*&student_id=eq.${sid}&order=due_at.asc`),
+  lessons: sid => sb(`lesson?select=*,room(*)&student_id=eq.${sid}&order=start_time.asc`),
+  reminders: sid => sb(`reminder?select=*&student_id=eq.${sid}&order=remind_at.asc`),
+  addReminder: r => sb("reminder", {method:"POST", body:r, prefer:"return=representation"}).then(x => x[0]),
+  updateReminder: (id, patch) => sb(`reminder?reminder_id=eq.${id}`, {method:"PATCH", body:patch, prefer:"return=representation"}),
+  deleteReminder: id => sb(`reminder?reminder_id=eq.${id}`, {method:"DELETE"}),
+  markDueSent: sid => sb(`reminder?student_id=eq.${sid}&status=eq.scheduled&remind_at=lt.${enc(now().toISOString())}`,
+                         {method:"PATCH", body:{status:"sent"}, prefer:"return=representation"}),
+  locationLogs: sid => sb(`location_log?select=*,lesson(course_name,start_time,room(room_code,block))&student_id=eq.${sid}&order=recorded_at.desc`),
+  sendAlert: (id, msg) => sb(`location_log?log_id=eq.${id}`, {method:"PATCH", body:{alert_sent:true, alert_message:msg}, prefer:"return=representation"}),
+  me: () => sb("student?select=student_id,full_name,email,group_code,created_at&limit=1").then(r => r[0] || null),
+  timetable: group => sb(`timetable?select=*&group_code=eq.${enc(group)}&order=weekday,start_time`)
+                       .catch(e => { if(/404|PGRST205|does not exist|schema cache/i.test(e.message)) return []; throw e; }),
+  ping: () => Auth.settings()
+};
+
+/* Demo DB: same tables/columns as Assignment 4, kept in memory */
+function buildDemo(){
+  const H = 3600000, base = new Date(); base.setSeconds(0,0);
+  const at = (days, hh, mm=0) => { const d = new Date(base); d.setDate(d.getDate()+days); d.setHours(hh,mm,0,0); return d.toISOString(); };
+  const inH = h => new Date(base.getTime()+h*H).toISOString();
+  const student = [
+    {student_id:1, email:"260612@astanait.edu.kz", full_name:"Aisha Nurlan", group_code:"ST-2606", device_token:"tok_9f3a", created_at:"2026-09-01T00:00:00Z"},
+    {student_id:2, email:"260633@astanait.edu.kz", full_name:"Madina Akhmetova", group_code:"ST-2606", device_token:"tok_1b7c", created_at:"2026-09-01T00:00:00Z"},
+    {student_id:3, email:"260701@astanait.edu.kz", full_name:"Arman Nurpeis", group_code:"SE-2607", device_token:"tok_77de", created_at:"2026-09-02T00:00:00Z"}
+  ];
+  const room = [
+    {room_id:1, room_code:"C1.3.319", block:"C1.3", floor:3, map_ref:"map area 319"},
+    {room_id:2, room_code:"C1.3.370", block:"C1.3", floor:3, map_ref:"map area 370"},
+    {room_id:3, room_code:"C1.2.240", block:"C1.2", floor:2, map_ref:"map area 240"},
+    {room_id:4, room_code:"C1.1.141", block:"C1.1", floor:1, map_ref:"map area 141"},
+    {room_id:5, room_code:"C1.4.412", block:"C1.4", floor:4, map_ref:"map area 412"}
+  ];
+  let iid = 1;
+  const item = (sid, source, item_type, title, due_at, urgency, url) => ({item_id:iid++, student_id:sid, source, item_type, title, due_at, urgency, external_url:url});
+  const academic_item = [
+    item(1,"Learn","online lesson","ICT Online Lesson + Quiz", inH(7),"urgent","https://learn.astanait.edu.kz"),
+    item(1,"LMS","assignment","Calculus Homework", at(1,23,59),"soon","https://lms.astanait.edu.kz"),
+    item(1,"Outlook","email","Physics lab: bring your Arduino kit", at(2,9),"soon","https://outlook.office.com"),
+    item(1,"LMS","assignment","Physics Midterm Report", at(4,23),"normal","https://lms.astanait.edu.kz"),
+    item(1,"Learn","quiz","English Vocabulary Quiz 5", at(3,18),"normal","https://learn.astanait.edu.kz"),
+    item(1,"LMS","assignment","Sociology Essay: Urban Life", at(6,23,59),"normal","https://lms.astanait.edu.kz"),
+    item(1,"Outlook","email","Dean's office: switching to 4-year bachelor", at(5,12),"normal","https://outlook.office.com"),
+    item(1,"Outlook","email","ICT: online lesson moved to Learn", at(1,10),"soon","https://outlook.office.com"),
+    item(1,"LMS","assignment","Programming Lab 3", at(-2,23,59),"normal","https://lms.astanait.edu.kz"),
+    item(2,"LMS","assignment","Discrete Math Set 4", at(1,23,59),"urgent","https://lms.astanait.edu.kz"),
+    item(2,"Learn","online lesson","Physics Online Lesson 6", at(2,20),"soon","https://learn.astanait.edu.kz"),
+    item(3,"LMS","assignment","Databases Assignment 4", at(3,23,59),"normal","https://lms.astanait.edu.kz")
+  ];
+  let lid = 1;
+  const les = (sid, room_id, course_name, lesson_type, d, h, m) => {
+    const s = at(d,h,m), e = new Date(new Date(s).getTime()+50*60000).toISOString();
+    return {lesson_id:lid++, student_id:sid, room_id, course_name, lesson_type, start_time:s, end_time:e};
+  };
+  const lesson = [
+    les(1,4,"Calculus","lecture",0,9,0), les(1,3,"Physics","practice",0,11,0), les(1,1,"Foreign Language (English)","practice",0,13,5),
+    les(1,2,"Sociology","lecture",0,15,10), les(1,5,"ICT","practice",1,10,0), les(1,1,"Sociology","practice",1,13,5),
+    les(1,3,"Calculus","practice",2,9,0), les(2,3,"Discrete Math","lecture",0,10,0), les(3,5,"Databases","practice",0,14,0)
+  ];
+  const nextLesson = lesson.find(l => l.student_id===1 && new Date(l.start_time) > base) || lesson[3];
+  const location_log = [
+    {log_id:1, student_id:1, lesson_id:nextLesson.lesson_id, detected_block:"Dormitory", walking_minutes:12, minutes_before_start:12, recorded_at:inH(-0.1), alert_sent:false, alert_message:null},
+    {log_id:2, student_id:1, lesson_id:lesson[1].lesson_id, detected_block:"C1.1", walking_minutes:4, minutes_before_start:15, recorded_at:inH(-3), alert_sent:false, alert_message:null},
+    {log_id:3, student_id:2, lesson_id:lesson[7].lesson_id, detected_block:"Library", walking_minutes:9, minutes_before_start:8, recorded_at:inH(-2), alert_sent:true, alert_message:"Leave now: 9 min walk, class starts in 8 min"}
+  ];
+  const reminder = [
+    {reminder_id:1, student_id:1, reminder_title:"ICT Online Lesson + Quiz", remind_at:inH(3), interval:"none", status:"scheduled"},
+    {reminder_id:2, student_id:1, reminder_title:"Programming Lab 3", remind_at:at(-3,18), interval:"1 day before", status:"scheduled"},
+    {reminder_id:3, student_id:1, reminder_title:"Sociology reading", remind_at:at(-5,9), interval:"none", status:"cancelled"}
+  ];
+  return {student, room, academic_item, lesson, location_log, reminder};
+}
+const demo = buildDemo();
+const DEMO_TIMETABLE = [
+    {"timetable_id": 1, "group_code": "ST-2606", "weekday": 1, "start_time": "08:00:00", "end_time": "08:50:00", "course_name": "Calculus 1", "lesson_type": "practice", "room_code": "C1.2.224P", "is_online": false},
+    {"timetable_id": 2, "group_code": "ST-2606", "weekday": 1, "start_time": "09:00:00", "end_time": "09:50:00", "course_name": "Calculus 1", "lesson_type": "practice", "room_code": "C1.2.224P", "is_online": false},
+    {"timetable_id": 3, "group_code": "ST-2606", "weekday": 1, "start_time": "10:00:00", "end_time": "10:50:00", "course_name": "Physics", "lesson_type": "lecture", "room_code": "C1.2.237L", "is_online": false},
+    {"timetable_id": 4, "group_code": "ST-2606", "weekday": 1, "start_time": "11:00:00", "end_time": "11:50:00", "course_name": "Physics", "lesson_type": "lecture", "room_code": "C1.2.237L", "is_online": false},
+    {"timetable_id": 5, "group_code": "ST-2606", "weekday": 1, "start_time": "12:00:00", "end_time": "12:50:00", "course_name": "Calculus 1", "lesson_type": "lecture", "room_code": "C1.3.361", "is_online": false},
+    {"timetable_id": 6, "group_code": "ST-2606", "weekday": 1, "start_time": "13:05:00", "end_time": "13:55:00", "course_name": "Calculus 1", "lesson_type": "lecture", "room_code": "C1.3.361", "is_online": false},
+    {"timetable_id": 7, "group_code": "ST-2606", "weekday": 1, "start_time": "14:00:00", "end_time": "14:50:00", "course_name": "Chinese Language 1 (A1)", "lesson_type": "practice", "room_code": "C1.1.326", "is_online": false},
+    {"timetable_id": 8, "group_code": "ST-2606", "weekday": 1, "start_time": "15:00:00", "end_time": "15:50:00", "course_name": "Chinese Language 1 (A1)", "lesson_type": "practice", "room_code": "C1.1.326", "is_online": false},
+    {"timetable_id": 9, "group_code": "ST-2606", "weekday": 2, "start_time": "08:00:00", "end_time": "08:50:00", "course_name": "Physics", "lesson_type": "practice", "room_code": "C1.3.122", "is_online": false},
+    {"timetable_id": 10, "group_code": "ST-2606", "weekday": 2, "start_time": "09:00:00", "end_time": "09:50:00", "course_name": "Physics", "lesson_type": "practice", "room_code": "C1.3.122", "is_online": false},
+    {"timetable_id": 11, "group_code": "ST-2606", "weekday": 2, "start_time": "10:00:00", "end_time": "10:50:00", "course_name": "ICP", "lesson_type": "lecture", "room_code": "C1.1.334L", "is_online": false},
+    {"timetable_id": 12, "group_code": "ST-2606", "weekday": 2, "start_time": "11:00:00", "end_time": "11:50:00", "course_name": "ICP", "lesson_type": "lecture", "room_code": "C1.1.334L", "is_online": false},
+    {"timetable_id": 13, "group_code": "ST-2606", "weekday": 3, "start_time": "08:00:00", "end_time": "08:50:00", "course_name": "ICT", "lesson_type": "practice", "room_code": "C1.1.348K", "is_online": false},
+    {"timetable_id": 14, "group_code": "ST-2606", "weekday": 3, "start_time": "09:00:00", "end_time": "09:50:00", "course_name": "ICT", "lesson_type": "practice", "room_code": "C1.1.348K", "is_online": false},
+    {"timetable_id": 15, "group_code": "ST-2606", "weekday": 3, "start_time": "14:00:00", "end_time": "14:50:00", "course_name": "Chinese Language 1 (A1)", "lesson_type": "practice", "room_code": "C1.1.326", "is_online": false},
+    {"timetable_id": 16, "group_code": "ST-2606", "weekday": 3, "start_time": "20:00:00", "end_time": "20:50:00", "course_name": "ICT", "lesson_type": "lecture", "room_code": null, "is_online": true},
+    {"timetable_id": 17, "group_code": "ST-2606", "weekday": 3, "start_time": "21:00:00", "end_time": "21:50:00", "course_name": "ICT", "lesson_type": "lecture", "room_code": null, "is_online": true},
+    {"timetable_id": 18, "group_code": "ST-2606", "weekday": 4, "start_time": "08:00:00", "end_time": "08:50:00", "course_name": "ICP", "lesson_type": "practice", "room_code": "C1.2.229K", "is_online": false},
+    {"timetable_id": 19, "group_code": "ST-2606", "weekday": 4, "start_time": "09:00:00", "end_time": "09:50:00", "course_name": "ICP", "lesson_type": "practice", "room_code": "C1.2.229K", "is_online": false},
+    {"timetable_id": 20, "group_code": "ST-2606", "weekday": 4, "start_time": "20:00:00", "end_time": "20:50:00", "course_name": "ICT", "lesson_type": "practice", "room_code": null, "is_online": true},
+    {"timetable_id": 21, "group_code": "ST-2606", "weekday": 5, "start_time": "09:00:00", "end_time": "09:50:00", "course_name": "Sociology", "lesson_type": "lecture", "room_code": "C1.3.370L", "is_online": false},
+    {"timetable_id": 22, "group_code": "ST-2606", "weekday": 5, "start_time": "10:00:00", "end_time": "10:50:00", "course_name": "Physics", "lesson_type": "practice", "room_code": "C1.3.321P", "is_online": false},
+    {"timetable_id": 23, "group_code": "ST-2606", "weekday": 5, "start_time": "12:00:00", "end_time": "12:50:00", "course_name": "ICP", "lesson_type": "lecture", "room_code": "C1.1.334", "is_online": false},
+    {"timetable_id": 24, "group_code": "ST-2606", "weekday": 5, "start_time": "21:00:00", "end_time": "21:50:00", "course_name": "Calculus 1", "lesson_type": "lecture", "room_code": null, "is_online": true},
+    {"timetable_id": 25, "group_code": "ST-2606", "weekday": 6, "start_time": "13:05:00", "end_time": "13:55:00", "course_name": "Sociology", "lesson_type": "practice", "room_code": "C1.3.319", "is_online": false},
+    {"timetable_id": 26, "group_code": "ST-2606", "weekday": 6, "start_time": "18:00:00", "end_time": "18:50:00", "course_name": "Chinese Language 1 (A1)", "lesson_type": "practice", "room_code": null, "is_online": true},
+    {"timetable_id": 27, "group_code": "ST-2606", "weekday": 6, "start_time": "19:00:00", "end_time": "19:50:00", "course_name": "Chinese Language 1 (A1)", "lesson_type": "practice", "room_code": null, "is_online": true}
+];
+const delay = v => new Promise(r => setTimeout(() => r(structuredClone(v)), 180));
+const DemoDB = {
+  name: "Demo",
+  students: () => delay(demo.student.map(({student_id,full_name,email,group_code}) => ({student_id,full_name,email,group_code}))),
+  studentByEmail: email => delay(demo.student.find(s => s.email.toLowerCase() === email.trim().toLowerCase()) || null),
+  items: sid => delay(demo.academic_item.filter(i => i.student_id===sid).sort((a,b) => new Date(a.due_at)-new Date(b.due_at))),
+  lessons: sid => delay(demo.lesson.filter(l => l.student_id===sid).map(l => ({...l, room: demo.room.find(r => r.room_id===l.room_id)}))
+                    .sort((a,b) => new Date(a.start_time)-new Date(b.start_time))),
+  reminders: sid => delay(demo.reminder.filter(r => r.student_id===sid).sort((a,b) => new Date(a.remind_at)-new Date(b.remind_at))),
+  addReminder: r => { const row = {reminder_id: Math.max(0,...demo.reminder.map(x=>x.reminder_id))+1, ...r}; demo.reminder.push(row); return delay(row); },
+  updateReminder: (id, patch) => { const r = demo.reminder.find(x => x.reminder_id===id); Object.assign(r, patch); return delay([r]); },
+  deleteReminder: id => { demo.reminder = demo.reminder.filter(x => x.reminder_id!==id); return delay(null); },
+  markDueSent: sid => { const due = demo.reminder.filter(r => r.student_id===sid && r.status==="scheduled" && new Date(r.remind_at) < now());
+                        due.forEach(r => r.status="sent"); return delay(due); },
+  locationLogs: sid => delay(demo.location_log.filter(g => g.student_id===sid).map(g => {
+                    const l = demo.lesson.find(x => x.lesson_id===g.lesson_id); const r = demo.room.find(x => x.room_id===l.room_id);
+                    return {...g, lesson:{course_name:l.course_name, start_time:l.start_time, room:{room_code:r.room_code, block:r.block}}}; })),
+  timetable: group => delay(DEMO_TIMETABLE.filter(t => t.group_code === group)),
+  sendAlert: (id, msg) => { const g = demo.location_log.find(x => x.log_id===id); g.alert_sent = true; g.alert_message = msg; return delay([g]); },
+  ping: () => delay([{}])
+};
+const DB = () => sbConfig() ? SupabaseDB : DemoDB;
+
+/* ============================== STATE ================================ */
+const state = {
+  user: store.get("hub_user", null),
+  history: [],
+  screen: null,
+  params: {},
+  deadlineTab: "upcoming",
+  scheduleDay: null,
+  reminderChoice: null,
+  cacheUsed: false
+};
+
+/* Load with offline fallback (HCI: error prevention — saved data + retry) */
+async function load(key, fn){
+  try{
+    const data = await fn();
+    store.set(`hub_cache_${DB().name}_${key}`, data);
+    state.cacheUsed = false;
+    return {data};
+  }catch(err){
+    const cached = store.get(`hub_cache_${DB().name}_${key}`, null);
+    return {data: cached, error: err, cached: !!cached};
+  }
+}
+
+/* ============================== ROUTER =============================== */
+const TABS = [
+  {id:"dashboard", icon:"🏠", label:"Dashboard"},
+  {id:"deadlines", icon:"⏰", label:"Deadlines"},
+  {id:"schedule",  icon:"🗓️", label:"Schedule"},
+  {id:"campus",    icon:"🗺️", label:"Campus Map"},
+  {id:"outlook",   icon:"✉️", label:"Outlook"},
+  {id:"reminders", icon:"🔔", label:"My Reminders"}
+];
+function go(screen, params = {}, {replace=false, root=false} = {}){
+  if(root) state.history = [];
+  else if(state.screen && !replace) state.history.push({screen:state.screen, params:state.params});
+  state.screen = screen; state.params = params;
+  render();
+}
+function back(){
+  const prev = state.history.pop();
+  if(prev){ state.screen = prev.screen; state.params = prev.params; render(); }
+  else go("dashboard", {}, {root:true});
+}
+
+function setHeader(title, {showBack=true, right=""} = {}){
+  $("#header").innerHTML =
+    (showBack ? `<button class="icon-btn" id="backBtn" aria-label="Back">← Back</button>` : "") +
+    `<h1>${esc(title)}</h1>` + right;
+  if(showBack) $("#backBtn").onclick = back;
+}
+function setStatus(){
+  const c = sbConfig();
+  const user = state.user ? ` · ${esc(state.user.full_name)} (${esc(state.user.group_code||"")})` : "";
+  $("#status").innerHTML = c
+    ? `<span class="dot" style="background:var(--green)"></span> Connected to Supabase${user}`
+    : `<span class="dot" style="background:var(--yellow)"></span> Demo data (Supabase not connected)${user}`;
+}
+function setTabs(active){
+  const nav = $("#tabs");
+  $("#phone").classList.toggle("no-sidebar", !state.user);
+  if(!state.user) return;
+  $("#sideUser").innerHTML = `<b>${esc(state.user.full_name)}</b><span>${esc(state.user.email)} · ${esc(state.user.group_code||"")}</span>`;
+  nav.innerHTML = TABS.map(t => `<button data-tab="${t.id}" class="${t.id===active?"active":""}"><span class="ti">${t.icon}</span>${t.label}</button>`).join("");
+  nav.querySelectorAll("button").forEach(b => b.onclick = () => go(b.dataset.tab, {}, {root:true}));
+}
+const loading = () => { $("#main").innerHTML = `<div class="spinner"></div>`; };
+function errorBlock(err, retryFn, cached){
+  return `<div class="banner ${cached?"warn":"alert"}">
+     ${cached ? "⚠️ No connection — showing your last saved data." : "❌ Could not load data."}
+     <div style="font-size:12.5px;margin-top:4px;opacity:.85">${esc(err.message)}</div>
+     <button class="btn small secondary" style="margin-top:8px" id="retryBtn">↻ Retry</button></div>`;
+}
+function bindRetry(fn){ const b = $("#retryBtn"); if(b) b.onclick = fn; }
+
+function toast(html, ms = 3200){
+  const t = document.createElement("div"); t.className = "toast"; t.innerHTML = html;
+  $("#phone").appendChild(t); setTimeout(() => t.remove(), ms);
+}
+/* Windows system notification (works in the desktop app) + in-app toast */
+function pushNotify(title, body){
+  toast(`📲 <span><b>${esc(title)}</b><br>${esc(body)}</span>`, 4500);
+  try{
+    if("Notification" in window){
+      if(Notification.permission === "granted") new Notification(title, {body});
+      else if(Notification.permission !== "denied") Notification.requestPermission().then(p => { if(p === "granted") new Notification(title, {body}); });
+    }
+  }catch(e){}
+}
+
+function confirmModal({title, text, okText="Confirm", danger=false}){
+  return new Promise(res => {
+    const m = document.createElement("div"); m.className = "modal-back";
+    m.innerHTML = `<div class="modal"><h3>${esc(title)}</h3><p class="muted" style="margin:0 0 6px">${esc(text)}</p>
+      <button class="btn ${danger?"danger":"primary"}" id="mOk">${esc(okText)}</button>
+      <button class="btn ghost" id="mCancel">Cancel</button></div>`;
+    $("#phone").appendChild(m);
+    m.querySelector("#mOk").onclick = () => { m.remove(); res(true); };
+    m.querySelector("#mCancel").onclick = () => { m.remove(); res(false); };
+    m.onclick = e => { if(e.target === m){ m.remove(); res(false); } };
+  });
+}
+
+function render(){
+  setStatus();
+  $("#mainScroll").scrollTop = 0;
+  $("#main").className = ["details","setReminder","confirmed","connect"].includes(state.screen) ? "narrow" : state.screen === "campus" ? "wrap wide" : "wrap";
+  if(!state.user && !["login","connect"].includes(state.screen)) state.screen = "login";
+  const s = SCREENS[state.screen] || SCREENS.dashboard;
+  s(state.params);
+}
+
+/* ===================== LMS CALENDAR IMPORT (Moodle iCal) =====================
+   Each student pastes their personal LMS calendar link once (Schedule → LMS calendar).
+   The desktop app downloads it on login and every 30 minutes:
+     "Attendance (Group …)"  -> lessons in Schedule
+     "… is due / closes / (Due date)" -> deadlines in Deadlines & Dashboard
+     "… opens" -> events shown in Schedule
+   The link contains a personal token: it is stored ENCRYPTED (Windows DPAPI) on this PC only. */
+const LMS_HOST = "lms.astanait.edu.kz";
+const LMS_SYNC_MS = 30 * 60 * 1000;
+const lmsKey = sid => `hub_lms_${DB().name}_${sid}`;            // encrypted link + sync status (kept)
+const lmsCacheKey = sid => `hub_cache_lms_${DB().name}_${sid}`; // parsed events (removed on logout)
+const lmsMem = {};
+
+function validLmsUrl(url){
+  try{ const u = new URL(url.trim()); return u.protocol === "https:" && u.hostname === LMS_HOST && u.pathname === "/calendar/export_execute.php" && u.searchParams.get("authtoken"); }
+  catch(e){ return false; }
+}
+
+/* --- minimal RFC 5545 parser: unfolding, escapes, UTC / TZID / DATE values --- */
+function parseICS(text){
+  const lines = text.replace(/\r\n[ \t]/g, "").replace(/\n[ \t]/g, "").split(/\r?\n/);
+  const events = []; let ev = null;
+  const unesc = v => v.replace(/\\n/gi, "\n").replace(/\\,/g, ",").replace(/\;/g, ";").replace(/\\\\/g, "\\");
+  const toDate = (val, params) => {
+    const m = val.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
+    if(!m) return null;
+    const [, y, mo, d, h = "00", mi = "00", s = "00", z] = m;
+    if(z) return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s));
+    if(/TZID=Asia\/(Almaty|Qostanay|Qyzylorda|Aqtobe|Oral)/i.test(params)) return new Date(Date.UTC(+y, +mo - 1, +d, +h - 5, +mi, +s)); // Kazakhstan: UTC+5
+    return new Date(+y, +mo - 1, +d, +h, +mi, +s);                // floating / DATE -> local time
+  };
+  for(const line of lines){
+    if(line === "BEGIN:VEVENT"){ ev = {}; continue; }
+    if(line === "END:VEVENT"){ if(ev && ev.start) events.push(ev); ev = null; continue; }
+    if(!ev) continue;
+    const i = line.indexOf(":"); if(i < 0) continue;
+    const head = line.slice(0, i), value = line.slice(i + 1);
+    const [name, ...params] = head.split(";"); const p = params.join(";");
+    switch(name.toUpperCase()){
+      case "UID": ev.uid = value; break;
+      case "SUMMARY": ev.summary = unesc(value).trim(); break;
+      case "DESCRIPTION": ev.description = unesc(value).trim(); break;
+      case "CATEGORIES": ev.categories = unesc(value).trim(); break;
+      case "LOCATION": ev.location = unesc(value).trim(); break;
+      case "DTSTART": ev.start = toDate(value, p); break;
+      case "DTEND": ev.end = toDate(value, p); break;
+    }
+  }
+  return events;
+}
+
+/* turn Moodle events into Hub lessons / deadlines / "opens" events */
+function classifyLms(events){
+  const lessons = [], items = [], opens = [];
+  const typeWords = ["lecture","practice","lab","seminar","laboratory","tutorial"];
+  for(const e of events){
+    const [course = "", teacher = ""] = (e.categories || "").split("|").map(x => x.trim());
+    const s = e.summary || "";
+    const id = `lms-${e.uid || (s + e.start.getTime())}`;
+    const lmsLink = `https://${LMS_HOST}/calendar/view.php?view=day&time=${Math.floor(e.start.getTime()/1000)}`;
+    if(/^attendance\b/i.test(s)){
+      const tm = (e.description || "").match(/^\s*(lecture|practice|laboratory|lab|seminar|tutorial)/i);
+      const firstWord = tm ? tm[1].toLowerCase() : "";
+      const end = e.end && e.end > e.start ? e.end : new Date(e.start.getTime() + 50*60000);
+      lessons.push({lesson_id:id, course_name: course || "Lesson", teacher, lesson_type: firstWord || "lesson",
+                    start_time:e.start.toISOString(), end_time:end.toISOString(),
+                    room: e.location ? {room_code:e.location} : null, group:(s.match(/\(Group ([^)]+)\)/i) || [])[1] || "", fromLms:true, external_url:lmsLink});
+    } else if(/\sopens$/i.test(s)){
+      opens.push({id, title: s.replace(/\s+opens$/i, ""), course, start_time:e.start.toISOString(), external_url:lmsLink});
+    } else {
+      let title = s.replace(/\s+is due$/i, "").replace(/\s*\(Due date\)\s*$/i, "").replace(/\s+closes$/i, "");
+      const type = /quiz/i.test(s) ? "quiz" : /exam|midterm|endterm|final/i.test(s) ? "exam" : "assignment";
+      items.push({item_id:id, source:"LMS", item_type:type, title, course, teacher, due_at:e.start.toISOString(),
+                  urgency:null, external_url:lmsLink, fromLms:true});
+    }
+  }
+  return {lessons, items, opens};
+}
+
+const LMS = {
+  status(sid){ return store.get(lmsKey(sid), null); },
+  data(sid){ return lmsMem[sid] || store.get(lmsCacheKey(sid), null) || {lessons:[], items:[], opens:[]}; },
+  available(){ return !!(window.hubNative && window.hubNative.fetchCalendar); },
+  async download(url){
+    const text = await window.hubNative.fetchCalendar(url);
+    const parsed = classifyLms(parseICS(text));
+    return parsed;
+  },
+  save(sid, parsed, extra = {}){
+    lmsMem[sid] = parsed; store.set(lmsCacheKey(sid), parsed);
+    const st = this.status(sid) || {};
+    store.set(lmsKey(sid), {...st, ...extra, lastSync: new Date().toISOString(), error: null,
+      counts: {lessons: parsed.lessons.length, items: parsed.items.length, opens: parsed.opens.length}});
+  },
+  async connect(sid, url){
+    if(!this.available()) throw new Error("LMS import works in the desktop app.");
+    if(!validLmsUrl(url)) throw new Error("Paste the calendar link from LMS (lms.astanait.edu.kz/calendar/export_execute.php?…authtoken=…).");
+    const parsed = await this.download(url.trim());
+    const enc = await window.hubNative.encrypt(url.trim());
+    if(!enc) throw new Error("This computer cannot encrypt the link safely, so it was not saved.");
+    this.save(sid, parsed, {enc});
+    return parsed;
+  },
+  async sync(sid){
+    const st = this.status(sid);
+    if(!st || !st.enc || !this.available()) return null;
+    const url = await window.hubNative.decrypt(st.enc);
+    if(!url){ store.set(lmsKey(sid), {...st, error:"The saved link could not be read. Connect the LMS calendar again."}); return null; }
+    try{ const parsed = await this.download(url); this.save(sid, parsed); return parsed; }
+    catch(e){ store.set(lmsKey(sid), {...st, error: e.message || String(e)}); throw e; }
+  },
+  disconnect(sid){ store.del(lmsKey(sid)); store.del(lmsCacheKey(sid)); delete lmsMem[sid]; }
+};
+
+/* merge LMS data with database data (avoid duplicates) */
+async function itemsWithLms(sid){
+  const db = await DB().items(sid);
+  const extra = LMS.data(sid).items.filter(x => !db.some(d => d.title?.toLowerCase() === x.title.toLowerCase() && Math.abs(new Date(d.due_at) - new Date(x.due_at)) < 60000));
+  return [...db, ...extra].sort((a,b) => new Date(a.due_at) - new Date(b.due_at));
+}
+/* "ICP" == "Introduction to Computing and Programming", "Calculus 1" == "Calculus", "scociology" ~ "Sociology" */
+function sameCourse(a, b){
+  const norm = x => String(x||"").toLowerCase().replace(/[^a-zа-яё0-9 ]/gi, " ").replace(/\s+/g, " ").trim();
+  const acr = x => norm(x).split(" ").filter(w => w && !["and","of","to","the","in","for","и"].includes(w)).map(w => w[0]).join("");
+  const A = norm(a), B = norm(b);
+  if(!A || !B) return false;
+  if(A === B || A.includes(B) || B.includes(A)) return true;
+  if(A.split(" ")[0] === B.split(" ")[0] && A.split(" ")[0].length > 3) return true;
+  if(acr(a) === B.replace(/ /g,"") || acr(b) === A.replace(/ /g,"")) return true;
+  return false;
+}
+/* Weekly timetable (table "timetable", per group) -> real dated lessons.
+   Window: 2 weeks back … 5 weeks ahead. Times are Astana time (UTC+5). */
+const TT_BACK_DAYS = 14, TT_AHEAD_DAYS = 35;
+function expandTimetable(rows){
+  const out = [], today = new Date(); today.setHours(0,0,0,0);
+  for(let off = -TT_BACK_DAYS; off <= TT_AHEAD_DAYS; off++){
+    const d = new Date(today); d.setDate(d.getDate() + off);
+    const wd = ((d.getDay() + 6) % 7) + 1;                    // 1 = Monday … 7 = Sunday
+    const dk = dayKey(d);
+    for(const t of rows.filter(r => Number(r.weekday) === wd)){
+      const st = String(t.start_time).slice(0,5), en = String(t.end_time).slice(0,5);
+      const p = t.room_code ? parseRoom(t.room_code) : null;
+      out.push({lesson_id:`tt-${t.timetable_id}-${dk}`, course_name:t.course_name, lesson_type:t.lesson_type,
+                start_time:new Date(`${dk}T${st}:00+05:00`).toISOString(), end_time:new Date(`${dk}T${en}:00+05:00`).toISOString(),
+                room: t.room_code ? {room_code:t.room_code, block:p?.block || null, floor:p?.floor ?? null} : null,
+                online: !!t.is_online, fromTimetable:true});
+    }
+  }
+  return out;
+}
+async function lessonsWithLms(sid){
+  const group = state.user?.group_code;
+  const tt = group ? await DB().timetable(group).catch(() => []) : [];
+  const lmsLessons = LMS.data(sid).lessons;
+  // base: weekly timetable of the group if it exists, otherwise the "lesson" table
+  const base = tt.length ? expandTimetable(tt) : await DB().lessons(sid);
+  const extra = [];
+  const myGroup = (state.user?.group_code || "").toUpperCase();
+  for(const l of lmsLessons){
+    const twin = base.find(d => Math.abs(new Date(d.start_time) - new Date(l.start_time)) < 10*60000 &&
+                                (sameCourse(d.course_name, l.course_name) || (l.group && l.group.toUpperCase() === myGroup)));
+    if(twin){ twin.inLms = true; if(!twin.teacher) twin.teacher = l.teacher; if(!twin.lmsCourse) twin.lmsCourse = l.course_name; }
+    else extra.push(l);
+  }
+  return [...base, ...extra].sort((a,b) => new Date(a.start_time) - new Date(b.start_time));
+}
+
+let lmsTimer = null, lmsBusy = false;
+async function lmsAutoSync({rerender = true} = {}){
+  if(!state.user || lmsBusy || !LMS.available() || !LMS.status(state.user.student_id)?.enc) return;
+  lmsBusy = true;
+  try{
+    await LMS.sync(state.user.student_id);
+    if(rerender && ["schedule","deadlines","dashboard"].includes(state.screen) && !document.querySelector(".modal-back")) render();
+  }catch(e){ /* status keeps the error; shown in Schedule */ }
+  finally{ lmsBusy = false; }
+}
+function startLmsTimer(){ clearInterval(lmsTimer); lmsTimer = setInterval(lmsAutoSync, LMS_SYNC_MS); }
+
+/* "Connect LMS calendar" dialog */
+function openLmsDialog(onDone){
+  const sid = state.user.student_id;
+  const m = document.createElement("div"); m.className = "modal-back";
+  m.innerHTML = `<div class="modal" style="width:560px">
+    <h3>📅 Connect your LMS calendar</h3>
+    <p class="muted" style="margin:0 0 10px;font-size:13.5px">Your lessons and deadlines from LMS will appear in the Hub and update automatically.</p>
+    <ol style="font-size:14px;line-height:1.55;padding-left:20px;margin:0 0 10px">
+      <li>Open <b>lms.astanait.edu.kz</b> → <b>Calendar</b>.</li>
+      <li>Click <b>Import or export calendars</b> → <b>Export calendar</b>.</li>
+      <li>Events to export: <b>All events</b>. Time period: <b>Custom range</b>.</li>
+      <li>Click <b>Get calendar URL</b> and copy the link.</li>
+    </ol>
+    <label for="lmsUrl">Calendar link</label>
+    <input id="lmsUrl" type="text" placeholder="https://lms.astanait.edu.kz/calendar/export_execute.php?userid=…&authtoken=…" autocomplete="off" spellcheck="false">
+    <div class="field-error" id="lmsErr" role="alert"></div>
+    <p class="muted" style="font-size:12.5px;margin:4px 0 0">🔒 The link is personal. It is saved <b>encrypted on this computer only</b> and used only to download your LMS calendar. Never share it.</p>
+    <button class="btn primary" id="lmsOk">Connect</button>
+    <button class="btn ghost" id="lmsCancel">Cancel</button></div>`;
+  $("#phone").appendChild(m);
+  const close = () => m.remove();
+  m.querySelector("#lmsCancel").onclick = close;
+  m.onclick = e => { if(e.target === m) close(); };
+  m.querySelector("#lmsUrl").focus();
+  m.querySelector("#lmsOk").onclick = async () => {
+    const url = m.querySelector("#lmsUrl").value.trim(), err = m.querySelector("#lmsErr"), btn = m.querySelector("#lmsOk");
+    if(!validLmsUrl(url)){ err.textContent = "This is not an LMS calendar link. It must start with https://lms.astanait.edu.kz/calendar/export_execute.php and contain authtoken."; return; }
+    btn.disabled = true; btn.textContent = "Downloading your calendar…"; err.textContent = "";
+    try{
+      const p = await LMS.connect(sid, url);
+      close(); startLmsTimer();
+      toast(`✅ LMS calendar connected: ${p.lessons.length} lessons, ${p.items.length} deadlines.`);
+      onDone && onDone();
+    }catch(e){ err.textContent = e.message || String(e); btn.disabled = false; btn.textContent = "Connect"; }
+  };
+}
+
+function timeAgo(iso){
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m/60)} h ago` : fmtDT(iso);
+}
+/* status card shown at the top of Schedule */
+function lmsCardHtml(sid){
+  if(!LMS.available()) return `<div class="card" style="border-left-color:var(--line)"><div class="row between"><b>📅 LMS calendar</b><span class="pill grey">desktop app only</span></div>
+    <div class="muted" style="font-size:13px;margin-top:4px">Importing your LMS calendar works in the installed AITU Hub app.</div></div>`;
+  const st = LMS.status(sid);
+  if(!st || !st.enc) return `<div class="card" style="border-left-color:var(--brand)">
+    <div class="row between"><b>📅 LMS calendar</b><span class="pill grey">not connected</span></div>
+    <div class="muted" style="font-size:13.5px;margin:4px 0 8px">Add your lessons and deadlines from LMS automatically.</div>
+    <button class="btn primary small" id="lmsConnect">+ Connect LMS calendar</button></div>`;
+  const c = st.counts || {};
+  return `<div class="card" style="border-left-color:${st.error ? "var(--red)" : "var(--green)"}">
+    <div class="row between"><b>📅 LMS calendar</b>${st.error ? `<span class="pill red">sync failed</span>` : `<span class="pill green">connected</span>`}</div>
+    <div class="muted" style="font-size:13px;margin:4px 0 8px">${c.lessons ?? 0} lessons · ${c.items ?? 0} deadlines · updated ${st.lastSync ? timeAgo(st.lastSync) : "—"} · auto-update every 30 min
+      ${st.error ? `<br><span style="color:var(--red)">${esc(st.error)}</span>` : ""}</div>
+    <div class="row" style="gap:8px"><button class="btn secondary small" id="lmsSync">↻ Sync now</button>
+      <button class="btn ghost small" id="lmsChange">Change link</button>
+      <button class="btn ghost small" id="lmsOff" style="color:var(--red)">Disconnect</button></div></div>`;
+}
+function bindLmsCard(sid, rerun){
+  const c = $("#lmsConnect"); if(c) c.onclick = () => openLmsDialog(rerun);
+  const ch = $("#lmsChange"); if(ch) ch.onclick = () => openLmsDialog(rerun);
+  const s = $("#lmsSync"); if(s) s.onclick = async () => {
+    s.disabled = true; s.textContent = "Syncing…";
+    try{ const p = await LMS.sync(sid); toast(`✅ LMS calendar updated: ${p.lessons.length} lessons, ${p.items.length} deadlines.`); }
+    catch(e){ toast("❌ " + esc(e.message || e)); }
+    rerun();
+  };
+  const off = $("#lmsOff"); if(off) off.onclick = async () => {
+    if(!await confirmModal({title:"Disconnect LMS calendar?", text:"Imported LMS lessons and deadlines will disappear from the Hub and the saved link will be deleted from this computer.", okText:"Disconnect", danger:true})) return;
+    LMS.disconnect(sid); toast("LMS calendar disconnected."); rerun();
+  };
+}
+
+/* ============================== SCREENS ============================== */
+const SCREENS = {};
+
+/* 1. LOGIN */
+SCREENS.login = async () => {
+  setHeader("AITU Student Hub", {showBack:false,
+    right:`<button class="icon-btn" id="cfgBtn" title="Settings">⚙️</button>`});
+  $("#cfgBtn").onclick = () => go("connect");
+  setTabs(null);
+  $("#main").innerHTML = `<div class="login-shell">
+    <div class="login-hero"><div style="font-size:48px">🎓</div>
+      <h2>AITU Student Hub</h2>
+      <p style="opacity:.85;margin:0 0 18px">Deadlines, lessons and emails from four platforms — in one place.</p>
+      <ul style="padding-left:18px;margin:0">
+        <li>📘 LMS · 🎓 Learn · ✉️ Outlook · 🗓️ My DU in one list</li>
+        <li>🔴 The most urgent deadline is always on top</li>
+        <li>🔔 Set a reminder in 4 clicks</li>
+        <li>🚪 See your classroom highlighted on the campus map</li>
+      </ul></div>
+    <div class="login-form" id="loginBox"></div></div>`;
+  const demo = !sbConfig();
+  let mode = state.authMode || "login";   // "login" | "register"
+  const draw = () => {
+    const reg = mode === "register";
+    $("#loginBox").innerHTML = `
+      ${demo || state.selfSignup === false ? "" : `<div class="seg" role="tablist"><button data-m="login" class="${reg?"":"active"}">Log in</button><button data-m="register" class="${reg?"active":""}">Create account</button></div>`}
+      <h2 style="margin-top:4px">${reg ? "Create your account" : "Log in"}</h2>
+      ${reg ? `<p class="muted" style="margin:-6px 0 6px;font-size:13.5px">First time? Use your university e-mail and choose a password (at least 8 characters).</p>` : ""}
+      <form id="loginForm" novalidate>
+        <label for="email">University e-mail</label>
+        <input id="email" type="email" placeholder="260612@astanait.edu.kz" autocomplete="username" value="${esc(state.lastEmail||"")}">
+        <label for="pw">Password</label>
+        <div style="position:relative"><input id="pw" type="password" placeholder="••••••••" autocomplete="${reg?"new-password":"current-password"}">
+          <button type="button" id="showPw" class="btn ghost small" style="position:absolute;right:4px;top:4px" aria-label="Show password">👁</button></div>
+        ${reg ? `<label for="pw2">Repeat password</label><input id="pw2" type="password" placeholder="••••••••" autocomplete="new-password">` : ""}
+        ${demo ? "" : `<label style="display:flex;align-items:center;gap:8px;font-weight:500;margin-top:12px"><input type="checkbox" id="remember" checked style="width:auto"> Keep me signed in on this computer</label>`}
+        <div class="field-error" id="loginErr" role="alert"></div>
+        <button class="btn primary" id="loginBtn" type="submit">${reg ? "Create account" : "Log in"}</button>
+      </form>
+      ${demo ? `<h3>Demo mode: pick a student</h3><div id="pickList"><div class="spinner" style="margin:14px auto"></div></div>`
+             : `<p class="muted" style="font-size:12.5px;margin-top:14px">🔒 Your password is checked by Supabase Auth and stored only as a secure hash. You can see only your own deadlines, lessons and reminders.</p>
+                <div id="authWarn"></div>`}`;
+    document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { state.lastEmail = $("#email").value.trim(); mode = state.authMode = b.dataset.m; draw(); });
+    $("#showPw").onclick = () => { const t = $("#pw").type === "password" ? "text" : "password"; $("#pw").type = t; const p2 = $("#pw2"); if(p2) p2.type = t; };
+    $("#loginForm").onsubmit = async e => {
+      e.preventDefault();
+      const email = $("#email").value.trim().toLowerCase(), pw = $("#pw").value, err = $("#loginErr");
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ err.textContent = "Enter a valid university e-mail."; $("#email").focus(); return; }
+      if(!pw){ err.textContent = "Enter your password."; $("#pw").focus(); return; }
+      if(reg && pw.length < 8){ err.textContent = "Use at least 8 characters for the password."; $("#pw").focus(); return; }
+      if(reg && pw !== $("#pw2").value){ err.textContent = "Passwords do not match."; $("#pw2").focus(); return; }
+      err.textContent = ""; const btn = $("#loginBtn"); btn.disabled = true; btn.textContent = reg ? "Creating…" : "Checking…";
+      state.lastEmail = email;
+      try{
+        if(demo){
+          const st = await DB().studentByEmail(email);
+          if(!st){ err.textContent = "No student with this e-mail in the demo data."; return; }
+          return loginAs(st);
+        }
+        const sess = reg ? await Auth.signUp(email, pw) : await Auth.signIn(email, pw);
+        if(!sess.access_token){ err.textContent = "Account created, but Supabase wants e-mail confirmation. Turn off Authentication → Email → “Confirm email” in Supabase, then log in."; return; }
+        saveSession(sess, $("#remember")?.checked);
+        const st = await SupabaseDB.me();
+        if(!st){ await Auth.signOut(); err.textContent = "Signed in, but no student record is linked to this e-mail. Has the database script been run?"; return; }
+        state.authMode = "login";
+        loginAs(st);
+      }catch(ex){ err.textContent = authMessage(ex); }
+      finally{ const b2 = $("#loginBtn"); if(b2){ b2.disabled = false; b2.textContent = reg ? "Create account" : "Log in"; } }
+    };
+    if(demo) loadPickList();
+    else Auth.settings().then(st => {
+      if(st && st.mailer_autoconfirm === false){
+        // self-registration is not possible: accounts are issued by the administrator
+        state.selfSignup = false;
+        const seg = document.querySelector("#loginBox .seg"); if(seg) seg.remove();
+        if(mode === "register"){ mode = state.authMode = "login"; return draw(); }
+        $("#authWarn").innerHTML = `<div class="banner info" style="font-size:13px">Accounts are issued by the AITU Hub administrator. Use the e-mail and password you were given.</div>`;
+      }
+      if(st && st.disable_signup) $("#authWarn").innerHTML = `<div class="banner warn" style="font-size:13px">New sign-ups are disabled in Supabase (Authentication → “Allow new users to sign up”).</div>`;
+    }).catch(() => {});
+  };
+  const loadPickList = async () => {
+    try{
+      const list = await DB().students();
+      $("#pickList").innerHTML = list.slice(0,8).map(s =>
+        `<div class="pick" data-email="${esc(s.email)}"><span><b>${esc(s.full_name)}</b><br><span class="muted">${esc(s.email)}</span></span><span class="pill blue">${esc(s.group_code||"")}</span></div>`).join("");
+      document.querySelectorAll(".pick").forEach(p => p.onclick = () => { $("#email").value = p.dataset.email; $("#pw").value = "demo1234"; $("#pw").focus(); });
+    }catch(ex){ $("#pickList").innerHTML = `<div class="banner alert">${esc(ex.message)}</div>`; }
+  };
+  draw();
+};
+/* cached lists contain personal data: remove them on logout */
+function clearPrivateCache(){ try{ Object.keys(localStorage).filter(k => k.startsWith("hub_cache_")).forEach(k => localStorage.removeItem(k)); }catch(e){} }
+function loginAs(st){
+  state.user = st; store.set("hub_user", st);
+  go("dashboard", {}, {root:true});
+  setTimeout(checkDueReminders, 600);
+  setTimeout(reminderScheduler, 1500);
+  setTimeout(() => lmsAutoSync(), 1200); startLmsTimer();
+}
+
+/* Settings: connect Supabase */
+SCREENS.connect = () => {
+  setHeader("Settings");
+  setTabs(state.user ? "dashboard" : null);
+  const c = store.get("hub_sb", {url:"", key:""}) || {url:"",key:""};
+  const hard = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+  const active = sbConfig();
+  $("#main").innerHTML = `
+    <h2>Database</h2>
+    ${active ? `<div class="banner ok">✅ Connected to <b>${esc(active.url.replace("https://",""))}</b>${active.key===SUPABASE_ANON_KEY?" (built-in keys)":""}</div>`
+             : `<div class="banner warn">Using demo data — Supabase is not connected.</div>`}
+    ${hard && (store.get("hub_force_demo",false) || store.get("hub_sb",null))
+       ? `<button class="btn primary" id="sbBuiltin">Use the built-in AITU Hub database</button>` : ""}
+    <details style="margin-top:12px" ${hard?"":"open"}>
+      <summary style="cursor:pointer;font-weight:600">Connect a different Supabase project</summary>
+      <p class="muted" style="font-size:13.5px">Supabase → <b>Connect</b> or <b>Project Settings → API Keys</b>. Use the <b>publishable</b> (sb_publishable_…) or <b>anon public</b> key — never a secret / service_role key.</p>
+      <label for="sbUrl">Project URL</label>
+      <input id="sbUrl" type="text" placeholder="https://xxxx.supabase.co" value="${esc(c.url)}">
+      <label for="sbKey">Publishable / anon key</label>
+      <input id="sbKey" type="text" placeholder="sb_publishable_... or eyJhbGciOi..." value="${esc(c.key)}">
+      <div class="field-error" id="sbErr"></div>
+      <button class="btn primary" id="sbSave">Test & connect</button>
+    </details>
+    <button class="btn secondary" id="sbDemo">Switch to demo data</button>
+
+    <h2 style="margin-top:28px">Privacy & security</h2>
+    <div class="card">
+      <div class="kv">
+        <div>Connection</div><div>Encrypted HTTPS (TLS) to Supabase only — the app cannot contact any other server.</div>
+        <div>Data stored</div><div>Only a short title, date and link per item. Full texts stay in LMS, Learn and Outlook.</div>
+        <div>On this PC</div><div>Your last loaded lists are cached so the app works offline while you are signed in. “Keep me signed in” off = you are logged out when the app closes.</div>
+        <div>Keys</div><div>Only the public (publishable) key is inside the app. Secret keys are rejected.</div>
+        <div>Accounts</div><div>Each student logs in with their own password (Supabase Auth, stored as a secure hash). Row Level Security in the database lets you read and change <b>only your own</b> deadlines, lessons and reminders. Logging out deletes the cached lists from this PC.</div>
+      </div>
+      <button class="btn danger small" id="clearLocal" style="margin-top:12px">Clear local data</button>
+    </div>
+
+    <h2 style="margin-top:28px">About</h2>
+    <div class="card">
+      <b>AITU Student Hub</b> 1.6 · Alua Bolat, ST-2606<br>
+      <span class="muted" style="font-size:13.5px">Campus floor plans: <a href="https://github.com/Yuujiso/aitumap" target="_blank" rel="noopener">aitumap</a> © 2023 Yuujiso, MIT License.
+      Some ideas inspired by the aitu_lighthouse Telegram bot.</span>
+    </div>`;
+  const sbBtn = $("#sbBuiltin"); if(sbBtn) sbBtn.onclick = async () => { await Auth.signOut(); clearPrivateCache(); store.del("hub_force_demo"); store.del("hub_sb"); store.del("hub_user"); state.user = null; toast("✅ Using the built-in database."); go("login", {}, {root:true}); };
+  $("#clearLocal").onclick = async () => {
+    if(!await confirmModal({title:"Clear local data?", text:"Removes cached lists and the saved login from this computer. Nothing is deleted in the database.", okText:"Clear", danger:true})) return;
+    await Auth.signOut(); clearPrivateCache(); store.del("hub_user");
+    state.user = null; toast("Local data cleared."); go("login", {}, {root:true});
+  };
+  $("#sbSave").onclick = async () => {
+    const url = $("#sbUrl").value.trim().replace(/\/+$/,""), key = $("#sbKey").value.trim(), err = $("#sbErr");
+    if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)){ err.textContent = "The URL must look like https://xxxx.supabase.co"; return; }
+    if(/^sb_secret_/.test(key) || /service_role/.test(atobSafe(key.split(".")[1]||""))){ err.textContent = "This is a SECRET key — use the publishable / anon key instead."; return; }
+    if(key.length < 30){ err.textContent = "The key looks too short — copy the whole key."; return; }
+    const prevSb = store.get("hub_sb", null), prevDemo = store.get("hub_force_demo", false);
+    store.set("hub_sb", {url, key}); store.del("hub_force_demo");
+    $("#sbSave").disabled = true; $("#sbSave").textContent = "Testing…";
+    try{
+      await SupabaseDB.ping();
+      clearSession(); clearPrivateCache(); store.del("hub_user"); state.user = null;
+      toast("✅ Connected to Supabase. Log in with a student from your table.");
+      go("login", {}, {root:true});
+    }catch(ex){
+      if(prevSb) store.set("hub_sb", prevSb); else store.del("hub_sb");
+      if(prevDemo) store.set("hub_force_demo", true);
+      err.textContent = "Could not connect: " + ex.message;
+      $("#sbSave").disabled = false; $("#sbSave").textContent = "Test & connect";
+    }
+  };
+  $("#sbDemo").onclick = async () => { await Auth.signOut(); clearPrivateCache(); store.set("hub_force_demo", true); store.del("hub_user"); state.user = null; toast("Switched to demo data."); go("login", {}, {root:true}); };
+};
+function atobSafe(x){ try{ return atob(x.replace(/-/g,"+").replace(/_/g,"/")); }catch(e){ return ""; } }
+
+/* 2. DASHBOARD */
+SCREENS.dashboard = async () => {
+  const u = state.user;
+  setHeader("Dashboard", {showBack:false, right:
+    `<button class="icon-btn" id="cfgBtn" title="Settings">⚙️</button><button class="icon-btn" id="outBtn">Log out</button>`});
+  $("#cfgBtn").onclick = () => go("connect");
+  $("#outBtn").onclick = async () => {
+    if(await confirmModal({title:"Log out?", text:"You will need to sign in again to see your deadlines.", okText:"Log out"})){
+      await Auth.signOut(); clearPrivateCache();
+      state.user = null; store.del("hub_user"); go("login", {}, {root:true});
+    }
+  };
+  setTabs("dashboard"); loading();
+  const [it, le, lg, rm] = await Promise.all([load(`items_${u.student_id}`, () => itemsWithLms(u.student_id)),
+    load(`lessons_${u.student_id}`, () => lessonsWithLms(u.student_id)),
+    load(`loc_${u.student_id}`, () => DB().locationLogs(u.student_id)),
+    load(`rem_${u.student_id}`, () => DB().reminders(u.student_id))]);
+  const items = it.data || [], lessons = le.data || [], logs = lg.data || [], rems = rm.data || [];
+  const upcoming = items.filter(i => urgencyOf(i) !== "past");
+  const next = upcoming[0];
+  const urgentCount = upcoming.filter(i => urgencyOf(i)==="urgent").length;
+  const todayL = lessons.filter(l => dayKey(l.start_time) === dayKey(now()));
+  const nextLesson = lessons.find(l => new Date(l.start_time) > now());
+  const unread = items.filter(i => i.source==="Outlook" && urgencyOf(i)!=="past").length;
+  const scheduled = rems.filter(r => r.status==="scheduled").length;
+  const risk = logs.find(g => !g.alert_sent && g.walking_minutes + 2 >= g.minutes_before_start);
+  const hour = now().getHours();
+  $("#main").innerHTML = `
+    ${it.error ? errorBlock(it.error, null, it.cached) : ""}
+    <h2>${hour<12?"Good morning":hour<18?"Hello":"Good evening"}, ${esc((u.full_name||"").split(" ")[0])} 👋</h2>
+    ${risk ? `<div class="banner alert clickable" id="riskBanner" style="cursor:pointer">🚶 <b>Leave now:</b> ${risk.walking_minutes} min walk to
+       ${esc(risk.lesson?.room?.room_code||"your room")}, ${esc(risk.lesson?.course_name||"class")} starts in ${risk.minutes_before_start} min. <u>Open</u></div>` : ""}
+    <div class="grid2" style="grid-template-columns:1fr 1fr;align-items:start">
+    <div>${next ? `<h3>Next deadline</h3>${itemCard(next)}` :
+      `<h3>Next deadline</h3><div class="banner ok">🎉 You have no upcoming deadlines.</div>`}</div>
+    <div id="nextLessonBox"></div></div>
+    <h3>Sections</h3>
+    <div class="grid2">
+      <button class="tile" data-go="deadlines"><div class="big">⏰</div><div class="tname">Deadlines</div><div class="tsub">${upcoming.length} upcoming · ${urgentCount} urgent</div></button>
+      <button class="tile" data-go="schedule"><div class="big">🗓️</div><div class="tname">Schedule</div><div class="tsub">${todayL.length} lessons today</div></button>
+      <button class="tile" data-go="outlook"><div class="big">✉️</div><div class="tname">Outlook</div><div class="tsub">${unread} recent emails</div></button>
+      <button class="tile" data-go="campus"><div class="big">🗺️</div><div class="tname">Campus Map</div><div class="tsub">Find any room, 3 floors</div></button>
+      <button class="tile" data-go="reminders"><div class="big">🔔</div><div class="tname">Reminders</div><div class="tsub">${scheduled} scheduled</div></button>
+    </div>
+    `;
+  $("#nextLessonBox").innerHTML = `${nextLesson ? `<h3>Next lesson</h3><div class="card clickable normal" id="nextLesson">
+      <div class="row between"><div class="title">${esc(nextLesson.course_name)}</div><span class="pill blue">${esc(nextLesson.lesson_type||"")}</span></div>
+      <div class="meta"><span>🕒 ${fmtDT(nextLesson.start_time)}</span><span>🚪 ${esc(nextLesson.room?.room_code||"—")}</span></div></div>` : `<h3>Next lesson</h3><div class="banner info">No more lessons scheduled.</div>`}`;
+  bindItemCards();
+  document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go, {}, {root:true}));
+  const nl = $("#nextLesson"); if(nl) nl.onclick = () => { state.scheduleDay = dayKey(nextLesson.start_time); go("schedule", {lessonId:nextLesson.lesson_id}); };
+  const rb = $("#riskBanner"); if(rb) rb.onclick = () => { state.scheduleDay = dayKey(risk.lesson.start_time); go("schedule", {lessonId:risk.lesson_id}); };
+};
+
+function itemCard(i){
+  const u = urgencyOf(i);
+  return `<div class="card clickable ${u}" data-item='${esc(JSON.stringify(i))}'>
+    <div class="row between"><div class="title">${sourceIcon(i.source)} ${esc(i.title)}</div>${urgencyPill(u)}</div>
+    <div class="meta"><span>${esc(i.source)} · ${esc(typeLabel(i.item_type))}${i.course ? ` · ${esc(i.course)}` : ""}</span><span>🕒 ${fmtDT(i.due_at)}</span>
+    <span style="${u==="urgent"?"color:var(--red);font-weight:650":""}">${timeLeft(i.due_at)}</span></div></div>`;
+}
+function bindItemCards(){
+  document.querySelectorAll("[data-item]").forEach(c => c.onclick = () => go("details", {item: JSON.parse(c.dataset.item)}));
+}
+
+/* 3. DEADLINES / NOTIFICATIONS — one urgency-sorted list */
+SCREENS.deadlines = async () => {
+  const u = state.user;
+  setHeader("Deadlines", {showBack:false}); setTabs("deadlines"); loading();
+  const run = async () => {
+    const r = await load(`items_${u.student_id}`, () => itemsWithLms(u.student_id));
+    const src = state.sourceFilter || "All";
+    const all = r.data || [];
+    const items = src === "All" ? all : all.filter(i => i.source === src);
+    const upcoming = items.filter(i => urgencyOf(i) !== "past");
+    const order = {urgent:0, soon:1, normal:2};
+    upcoming.sort((a,b) => (order[urgencyOf(a)]-order[urgencyOf(b)]) || (new Date(a.due_at)-new Date(b.due_at)));
+    const past = items.filter(i => urgencyOf(i) === "past").sort((a,b) => new Date(b.due_at)-new Date(a.due_at));
+    const in3 = upcoming.filter(i => new Date(i.due_at) - now() < 3*86400000);
+    const list = state.deadlineTab === "upcoming" ? upcoming : past;
+    $("#main").innerHTML = `
+      ${r.error ? errorBlock(r.error, run, r.cached) : ""}
+      <div class="filters">${["All","LMS","Learn","Outlook"].map(x => `<button class="chip ${x===src?"active":""}" data-src="${x}">${x==="All"?"All sources":sourceIcon(x)+" "+x} (${x==="All"?all.length:all.filter(i=>i.source===x).length})</button>`).join("")}</div>
+      <div class="seg"><button data-t="upcoming" class="${state.deadlineTab==="upcoming"?"active":""}">Upcoming (${upcoming.length})</button>
+        <button data-t="past" class="${state.deadlineTab==="past"?"active":""}">Past (${past.length})</button></div>
+      ${state.deadlineTab==="upcoming" ? (in3.length
+        ? `<p class="muted" style="margin:0 0 10px;font-size:13.5px">${in3.length} due in the next 3 days · most urgent on top · LMS, Learn and Outlook together</p>`
+        : `<div class="banner ok">✅ You have no urgent deadlines in the next 3 days.</div>`) : ""}
+      ${list.length ? `<div class="list-grid">${list.map(itemCard).join("")}</div>` : `<div class="empty"><div class="big">📭</div>Nothing here.</div>`}`;
+    document.querySelectorAll(".seg button").forEach(b => b.onclick = () => { state.deadlineTab = b.dataset.t; run(); });
+    document.querySelectorAll("[data-src]").forEach(b => b.onclick = () => { state.sourceFilter = b.dataset.src; run(); });
+    bindItemCards(); bindRetry(run);
+  };
+  run();
+};
+
+/* 4. DETAILS */
+SCREENS.details = ({item}) => {
+  const u = urgencyOf(item);
+  const isEmail = (item.item_type||"").toLowerCase() === "email";
+  setHeader(isEmail ? "Email" : "Details"); setTabs(isEmail ? "outlook" : "deadlines");
+  const platform = item.source || "platform";
+  $("#main").innerHTML = `
+    <div class="card ${u}">
+      <div class="row between" style="margin-bottom:6px">${urgencyPill(u)}<span class="pill blue">${sourceIcon(item.source)} ${esc(item.source)}</span></div>
+      <div class="title" style="font-size:19px">${esc(item.title)}</div>
+      <div class="kv" style="margin-top:12px">
+        <div>Type</div><div>${esc(typeLabel(item.item_type))}</div>
+        <div>${isEmail?"Received / date":"Due"}</div><div>${fmtDT(item.due_at)}</div>
+        <div>Time left</div><div style="${u==="urgent"?"color:var(--red);font-weight:650":""}">${timeLeft(item.due_at)}</div>
+        <div>Source</div><div>${esc(item.source)}</div>
+      </div>
+    </div>
+    <p class="muted" style="font-size:13px">The Hub keeps only the title, date and link. The full text stays in ${esc(platform)}.</p>
+    ${item.external_url ? `<a class="btn secondary" href="${esc(item.external_url)}" target="_blank" rel="noopener">Open in ${esc(platform)} ↗</a>` : ""}
+    <button class="btn primary" id="setRem" ${u==="past"?"disabled":""}>🔔 Set Reminder</button>
+    ${u==="past" ? `<p class="muted" style="font-size:13px;text-align:center">This deadline has passed, so a reminder cannot be set.</p>` : ""}
+    <button class="btn ghost" id="backList">← Back to ${isEmail?"Outlook":"Deadlines"}</button>`;
+  const sr = $("#setRem"); if(sr && u!=="past") sr.onclick = () => { state.reminderChoice = null; go("setReminder", {item}); };
+  $("#backList").onclick = back;
+};
+
+/* 5. SET REMINDER */
+SCREENS.setReminder = ({item}) => {
+  setHeader("Set Reminder"); setTabs("deadlines");
+  const due = item.due_at ? new Date(item.due_at) : null;
+  const tom = new Date(); tom.setDate(tom.getDate()+1); tom.setHours(9,0,0,0);
+  const tonight = new Date(); tonight.setHours(20,0,0,0);
+  const opts = [
+    {id:"soon", label:"In 2 minutes (try it now)", at:new Date(Date.now()+120000), interval:"none"},
+    {id:"tomorrow", label:"Tomorrow, 09:00", at:tom, interval:"none"},
+    {id:"tonight", label:"Tonight, 20:00", at:tonight, interval:"none"},
+    due && {id:"day", label:"1 day before the deadline", at:new Date(due - 86400000), interval:"1 day before"},
+    due && {id:"hour", label:"1 hour before the deadline", at:new Date(due - 3600000), interval:"1 hour before"},
+    {id:"custom", label:"Pick date and time…", at:null, interval:"none"}
+  ].filter(Boolean).map(o => ({...o, disabled: o.at && (o.at <= now() || (due && o.at > due))}));
+  if(!state.reminderChoice){ const f = opts.find(o => !o.disabled && o.id !== "soon"); state.reminderChoice = f ? f.id : "custom"; }
+  const draw = () => {
+    $("#main").innerHTML = `
+      <div class="card ${urgencyOf(item)}"><div class="title">${sourceIcon(item.source)} ${esc(item.title)}</div>
+        <div class="meta"><span>Due ${fmtDT(item.due_at)}</span><span>${timeLeft(item.due_at)}</span></div></div>
+      <h3>When should we remind you?</h3>
+      ${opts.map(o => `<div class="option ${state.reminderChoice===o.id?"selected":""} ${o.disabled?"disabled":""}" data-opt="${o.id}" role="radio" aria-checked="${state.reminderChoice===o.id}">
+        <span class="radio"></span><span><div>${o.label}</div>
+        <div class="osub">${o.at ? fmtDT(o.at) : "Choose any time before the deadline"}${o.disabled ? (o.at<=now()?" · already passed":" · after the deadline") : ""}</div></span></div>`).join("")}
+      ${state.reminderChoice==="custom" ? `<input type="datetime-local" id="customDT" style="margin-top:4px">` : ""}
+      <div class="field-error" id="remErr"></div>
+      <button class="btn primary" id="saveRem">Set Reminder</button>
+      <button class="btn ghost" id="cancelRem">Cancel</button>`;
+    document.querySelectorAll("[data-opt]").forEach(el => el.onclick = () => {
+      const o = opts.find(x => x.id === el.dataset.opt); if(o.disabled) return;
+      state.reminderChoice = o.id; draw();
+    });
+    const cdt = $("#customDT");
+    if(cdt){ const d = new Date(Date.now()+3600000); d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+             cdt.value = d.toISOString().slice(0,16); cdt.min = new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16); }
+    $("#cancelRem").onclick = back;
+    $("#saveRem").onclick = async () => {
+      const o = opts.find(x => x.id === state.reminderChoice), err = $("#remErr");
+      let when = o.at;
+      if(o.id === "custom"){
+        if(!cdt.value){ err.textContent = "Choose a date and time."; return; }
+        when = new Date(cdt.value);
+      }
+      if(when <= now()){ err.textContent = "This time is already in the past. Choose a later time."; return; }
+      if(due && when > due){ err.textContent = "The reminder must be before the deadline."; return; }
+      const btn = $("#saveRem"); btn.disabled = true; btn.textContent = "Saving…";
+      try{
+        const row = await DB().addReminder({student_id: state.user.student_id, reminder_title: item.title,
+                                            remind_at: when.toISOString(), interval: o.interval, status: "scheduled"});
+        go("confirmed", {reminder: row || {reminder_title:item.title, remind_at:when.toISOString()}, item}, {replace:true});
+      }catch(ex){
+        err.innerHTML = `Could not save the reminder: ${esc(ex.message)}<br>Your choice is kept — click “Set Reminder” to try again.`;
+        btn.disabled = false; btn.textContent = "Set Reminder";
+      }
+    };
+  };
+  draw();
+};
+
+/* 6. REMINDER CONFIRMED */
+SCREENS.confirmed = ({reminder}) => {
+  setHeader("Reminder confirmed", {showBack:false}); setTabs("deadlines");
+  $("#main").innerHTML = `
+    <div class="success"><div class="check">✓</div>
+      <h2 style="margin-bottom:6px">Reminder confirmed</h2>
+      <p class="muted" style="margin:0">You will be notified about</p>
+      <p style="font-weight:650;font-size:17px;margin:6px 0">${esc(reminder.reminder_title)}</p>
+      <span class="pill blue" style="font-size:13px">🔔 ${fmtDT(reminder.remind_at)}</span>
+      ${reminder.reminder_id ? `<p class="muted" style="font-size:12px;margin-top:14px">Saved in table <code>reminder</code> · id ${esc(reminder.reminder_id)} · status: ${esc(reminder.status||"scheduled")}</p>` : ""}
+    </div>
+    <button class="btn primary" id="toDeadlines">Back to Deadlines</button>
+    <button class="btn secondary" id="toReminders">See all my reminders</button>
+    <button class="btn ghost" id="toDash">Go to Dashboard</button>`;
+  $("#toDeadlines").onclick = () => go("deadlines", {}, {root:true});
+  $("#toReminders").onclick = () => go("reminders", {}, {root:true});
+  $("#toDash").onclick = () => go("dashboard", {}, {root:true});
+};
+
+/* 7. SCHEDULE + campus map + smart location alert */
+SCREENS.schedule = async ({lessonId} = {}) => {
+  const u = state.user;
+  setHeader("Schedule", {showBack: state.history.length > 0}); setTabs("schedule"); loading();
+  const run = async () => {
+    const [r, g] = await Promise.all([load(`lessons_${u.student_id}`, () => lessonsWithLms(u.student_id)),
+                                      load(`loc_${u.student_id}`, () => DB().locationLogs(u.student_id))]);
+    const lessons = r.data || [], logs = g.data || [];
+    const lmsD = LMS.data(u.student_id);
+    if(!lessons.length && !lmsD.opens.length){
+      $("#main").innerHTML = (r.error ? errorBlock(r.error, run, r.cached) : "") + `<div class="narrow">${lmsCardHtml(u.student_id)}</div><div class="empty"><div class="big">🗓️</div>No lessons in your timetable yet.<br>Connect your LMS calendar to import them.</div>`;
+      bindLmsCard(u.student_id, run); bindRetry(run); return;
+    }
+    const days = [...new Set([...lessons.map(l => dayKey(l.start_time)), ...lmsD.opens.map(o => dayKey(o.start_time))])].sort();
+    const today = dayKey(now());
+    if(!state.scheduleDay || !days.includes(state.scheduleDay))
+      state.scheduleDay = days.includes(today) ? today : (days.find(d => d > today) || days[days.length-1]);
+    const dayLessons = lessons.filter(l => dayKey(l.start_time) === state.scheduleDay);
+    let sel = dayLessons.find(l => l.lesson_id === lessonId)
+           || dayLessons.find(l => new Date(l.end_time || l.start_time) > now()) || dayLessons[0];
+    const risk = logs.filter(x => x.walking_minutes + 2 >= x.minutes_before_start);
+    const draw = () => {
+      $("#main").innerHTML = `
+        ${r.error ? errorBlock(r.error, run, r.cached) : ""}
+        ${risk.map(x => x.alert_sent
+          ? `<div class="banner ok">✅ Alert sent: “${esc(x.alert_message)}”</div>`
+          : `<div class="banner alert">🚶 <b>Late risk</b> — you are in <b>${esc(x.detected_block)}</b>, ${x.walking_minutes} min walk to
+               ${esc(x.lesson?.room?.room_code||"")}, ${esc(x.lesson?.course_name||"")} starts in ${x.minutes_before_start} min.
+               <button class="btn small secondary" style="margin-top:8px;background:#fff" data-alert="${x.log_id}" data-w="${x.walking_minutes}" data-m="${x.minutes_before_start}">Send “Leave now” push</button></div>`).join("")}
+        <div class="cols"><div>
+        ${lmsCardHtml(u.student_id)}
+        ${(() => {
+          // week navigation: only the days of the selected week are shown as chips
+          const mon = d => { const x = new Date(d + "T12:00"); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return dayKey(x); };
+          const wk = mon(state.scheduleDay);
+          const weekDays = days.filter(d => mon(d) === wk);
+          const prevWk = [...days].reverse().find(d => mon(d) < wk);
+          const prev = prevWk ? days.find(d => mon(d) === mon(prevWk)) : null, next = days.find(d => mon(d) > wk);
+          const fromTt = lessons.some(l => l.fromTimetable);
+          return `<div class="row between" style="margin:4px 0 8px">
+              <button class="btn ghost small" data-day="${prev||""}" ${prev?"":"disabled"}>‹ Previous week</button>
+              <span class="muted" style="font-size:13px">Week of ${fmtDate(wk+"T12:00")}${fromTt ? ` · timetable ${esc(state.user.group_code||"")}` : ""}</span>
+              <button class="btn ghost small" data-day="${next||""}" ${next?"":"disabled"}>Next week ›</button></div>
+            <div class="chips">${weekDays.map(d => `<button class="chip ${d===state.scheduleDay?"active":""}" data-day="${d}">${d===today?"Today":fmtDate(d+"T12:00")}</button>`).join("")}
+            ${!weekDays.includes(today) && days.includes(today) ? `<button class="chip" data-day="${today}">↩ Today</button>` : ""}</div>`;
+        })()}
+        ${dayLessons.map(l => {
+          const nowL = new Date(l.start_time) <= now() && now() <= new Date(l.end_time || l.start_time);
+          const done = new Date(l.end_time || l.start_time) < now();
+          return `<div class="card clickable ${l===sel?"soon":done?"past":"normal"}" data-lesson="${l.lesson_id}" ${l===sel?'style="background:var(--brand-soft);border-left-color:var(--brand)"':""}>
+            <div class="row between"><div class="title">${esc(l.course_name)}</div>
+              <span class="row" style="gap:6px">${l.fromLms || l.inLms ? '<span class="pill grey" title="From your LMS calendar">LMS</span>' : ""}
+              ${nowL?'<span class="pill red">NOW</span>':`<span class="pill blue">${esc(l.lesson_type||"")}</span>`}</span></div>
+            <div class="meta"><span>🕒 ${fmtTime(l.start_time)}${l.end_time?" – "+fmtTime(l.end_time):""}</span>
+              ${l.room ? `<span>🚪 <b>${esc(l.room.room_code||"—")}</b></span>${l.room.block ? `<span>Block ${esc(l.room.block)}, floor ${esc(l.room.floor ?? "—")}</span>` : ""}`
+                       : l.online ? `<span>💻 <b>Online</b></span>` : `<span>🚪 room not in LMS</span>`}
+              ${l.teacher ? `<span>👤 ${esc(l.teacher)}</span>` : ""}</div></div>`;
+        }).join("")}
+        ${(() => {
+          const op = lmsD.opens.filter(o => dayKey(o.start_time) === state.scheduleDay);
+          const due = lmsD.items.filter(i => dayKey(i.due_at) === state.scheduleDay);
+          if(!op.length && !due.length) return "";
+          return `<h3>Also on this day (LMS)</h3>` +
+            due.map(i => `<div class="card clickable ${urgencyOf(i)}" data-item='${esc(JSON.stringify(i))}'><div class="row between"><div class="title" style="font-size:15px">⏰ ${esc(i.title)}</div><span class="pill red">due ${fmtTime(i.due_at)}</span></div><div class="meta"><span>${esc(i.course||"LMS")}</span></div></div>`).join("") +
+            op.map(o => `<div class="card normal"><div class="row between"><div class="title" style="font-size:15px">🔓 ${esc(o.title)}</div><span class="pill green">opens ${fmtTime(o.start_time)}</span></div><div class="meta"><span>${esc(o.course||"LMS")}</span></div></div>`).join("");
+        })()}
+        </div><div class="sticky">
+          <h3 style="margin-top:4px">Where is it?</h3>
+          <div id="schedMap"></div>
+          <div id="mapNote"></div>
+          ${sel ? `<div class="card normal"><div class="title">${esc(sel.course_name)}</div>
+            <div class="kv" style="margin-top:8px"><div>Time</div><div>${fmtTime(sel.start_time)}${sel.end_time?" – "+fmtTime(sel.end_time):""}</div>
+            <div>Room</div><div><b>${sel.online ? "Online" : esc(sel.room?.room_code||"—")}</b></div><div>Block / floor</div><div>${esc(sel.room?.block||"—")} / ${esc(sel.room?.floor ?? "—")}</div>
+            <div>Type</div><div>${esc(sel.lesson_type||"—")}</div>
+            ${sel.teacher ? `<div>Teacher</div><div>${esc(sel.teacher)}</div>` : ""}</div>
+            <button class="btn secondary small" id="openBig" style="margin-top:12px">🗺️ Open on full campus map</button></div>` : ""}
+          <p class="muted" style="font-size:12.5px">Click a lesson to highlight its room on the map. 🔔 You get a push 10 minutes before each lesson.</p>
+        </div></div>`;
+      const viewer = createMapViewer($("#schedMap"), {compact:true});
+      const onMap = sel && findRoomOnMap(sel.room?.room_code);
+      if(viewer && onMap){ viewer.focus(onMap.name); }
+      else if(viewer && sel && sel.online){ viewer.overlay(`<div><b>💻 Online lesson</b>No room needed — join from LMS / Teams.</div>`); }
+      else if(viewer && sel && !sel.room){ viewer.overlay(`<div><b>🏫 Room unknown</b>The LMS calendar does not say in which room this lesson is.<br>Check My DU or ask the teacher.</div>`); }
+      else if(viewer && sel){ viewer.overlay(`<div><b>🚪 ${esc(sel.room?.room_code||"Room")} — plan not available</b>The campus map covers blocks C1.1–C1.3, floors 1–3.<br>Use the room code above to find it.</div>`); }
+      const ob = $("#openBig");
+      if(ob){ if(!onMap) ob.textContent = "🗺️ Browse campus map"; ob.onclick = () => go("campus", onMap ? {room: sel.room?.room_code} : {}); }
+      bindLmsCard(u.student_id, run); bindItemCards();
+      document.querySelectorAll("[data-day]").forEach(b => b.onclick = () => { if(!b.dataset.day) return; state.scheduleDay = b.dataset.day; state.params = {}; run(); });
+      document.querySelectorAll("[data-lesson]").forEach(c => c.onclick = () => { sel = dayLessons.find(l => l.lesson_id == c.dataset.lesson); state.params = {...state.params, lessonId: sel.lesson_id}; draw(); });
+      document.querySelectorAll("[data-alert]").forEach(b => b.onclick = async () => {
+        const msg = `Leave now: ${b.dataset.w} min walk, class starts in ${b.dataset.m} min`;
+        b.disabled = true; b.textContent = "Sending…";
+        try{ await DB().sendAlert(Number(b.dataset.alert), msg); pushNotify("AITU Hub — Leave now", msg); run(); }
+        catch(ex){ b.disabled = false; b.textContent = "Retry"; toast("❌ " + esc(ex.message)); }
+      });
+      bindRetry(run);
+    };
+    draw();
+  };
+  run();
+};
+
+/* ======================== CAMPUS MAP (real floor plans) ========================
+   Floor plans of block C1 (C1.1, C1.2, C1.3), floors 1–3, from the open-source
+   project "aitumap" by Yuujiso (MIT License) — see THIRD_PARTY_LICENSES.txt.
+   Every room is an SVG group with data-name = room code, e.g. "C1.3.319P".   */
+const MAP = window.AITU_MAP || null;
+const ROOM_TYPES = {P:"Practice room", L:"Lecture hall", K:"Computer lab"};
+
+/* Search index over all floors: [{name, label, floor}] */
+const MAP_INDEX = (() => {
+  if(!MAP) return [];
+  const out = [];
+  for(const [floor, svg] of Object.entries(MAP.floors)){
+    for(const m of svg.matchAll(/data-name="([^"]+)"/g)){
+      const name = m[1];
+      if(/^C\d\.\d$/.test(name) || /^\d\.\d+[A-Z]?$/.test(name)) continue;   // block labels / stray ids
+      out.push({name, label: name.split("|")[0], floor: Number(floor)});
+    }
+  }
+  return out;
+})();
+
+/* "C1.3.319" -> {block:"C1.3", floor:3, num:"319"} */
+function parseRoom(code){
+  const m = String(code||"").trim().toUpperCase().match(/^(C\d\.\d)\.(\d)(\d+)([A-Z]?)$/);
+  return m ? {block:m[1], floor:Number(m[2]), num:m[2]+m[3], type:m[4]} : null;
+}
+/* find the map entry for a room code from the database */
+function findRoomOnMap(code){
+  if(!code) return null;
+  const c = String(code).toUpperCase().replace(/\s+/g, "").replace(/[-_/]/g, ".");
+  const candidates = [c];
+  // "C1.1.3.366" (block . floor . room)  ->  "C1.1.366"
+  // "C1.1.3.66"  (block . floor . short) ->  "C1.1.366"
+  const m = c.match(/^(C\d\.\d)\.(?:(\d)\.)?(\d{1,3})([A-Z]?)$/);
+  if(m){
+    let num = m[3];
+    if(m[2] && num.length < 3) num = m[2] + num.padStart(2, "0");
+    candidates.push(`${m[1]}.${num}${m[4]}`, `${m[1]}.${num}`);
+  }
+  for(const cand of candidates){
+    const hit = MAP_INDEX.find(e => e.label === cand || (e.label.length === cand.length + 1 && e.label.startsWith(cand) && /[A-Z]$/.test(e.label)));
+    if(hit) return hit;
+  }
+  return null;
+}
+const FACILITIES = {
+  DININGHALL:  {title:"Dining hall",     sub:"Асхана · Столовая · floor 1", alias:"CANTEEN CAFE CAFETERIA FOOD EAT LUNCH КАФЕ ЕДА"},
+  MEDIKER:     {title:"Medical centre",  sub:"Mediker · Медпункт · floor 1", alias:"MEDICAL DOCTOR NURSE CLINIC HEALTH МЕДПУНКТ ВРАЧ"},
+  LIBRARY:     {title:"Library",         sub:"Кітапхана · Библиотека · Медиатека · floor 1", alias:"BOOKS MEDIATEKA"},
+  ASSEMBLYHALL:{title:"Assembly hall",   sub:"Актовый зал · floor 1", alias:"HALL AUDITORIUM EVENTS ЗАЛ"},
+  ATAMEKEN:    {title:"Atameken coworking", sub:"Атамекен · floor 1", alias:"COWORKING"}
+};
+/* text that search looks at: code + all names + aliases */
+function searchText(e){ const f = FACILITIES[e.label]; return (e.name + " " + (f ? f.title + " " + f.alias : "")).toUpperCase(); }
+function prettyLabel(label){ return FACILITIES[label]?.title || label; }
+function describeRoom(name){
+  const label = name.split("|")[0];
+  if(FACILITIES[label]) return FACILITIES[label];
+  const p = parseRoom(label);
+  if(!p) return {title: label.replace(/_/g," "), sub: "Campus facility"};
+  return {title: label, sub: `Block ${p.block} · floor ${p.floor}` + (ROOM_TYPES[p.type] ? ` · ${ROOM_TYPES[p.type]}` : "")};
+}
+
+/* Reusable pan/zoom map viewer */
+function createMapViewer(container, {floor = 1, onRoomClick = null, compact = false} = {}){
+  if(!MAP){ container.innerHTML = `<div class="banner warn">Map data (map-data.js) is missing.</div>`; return null; }
+  const [bx, by, bw, bh] = MAP.viewBox.split(" ").map(Number);
+  const base = {x:bx, y:by, w:bw, h:bh};
+  let vb = {...base}, cur = floor, anim = null;
+  container.classList.add("cm"); if(compact) container.classList.add("compact");
+  container.innerHTML = `
+    <svg class="cm-svg" viewBox="${MAP.viewBox}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="AITU campus floor plan"></svg>
+    <div class="cm-zoom">
+      <button type="button" data-z="in" title="Zoom in">+</button>
+      <button type="button" data-z="out" title="Zoom out">−</button>
+      <button type="button" data-z="reset" title="Show whole floor">⤢</button>
+    </div>
+    <div class="cm-badge"></div>
+    ${compact ? "" : `<div class="cm-hint">Scroll to zoom · drag to move · click a room</div>`}`;
+  const badge = container.querySelector(".cm-badge");
+  const setBadge = room => { const p = room && parseRoom(room.split("|")[0]); badge.textContent = (p ? `Block ${p.block} · ` : "") + `Floor ${cur}`; };
+  const svg = container.querySelector("svg");
+  const apply = () => svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  const clampVb = v => {
+    const w = Math.min(Math.max(v.w, base.w/10), base.w*1.3), h = w * base.h / base.w;
+    const cx = v.x + v.w/2, cy = v.y + v.h/2;
+    const ncx = Math.min(Math.max(cx, base.x), base.x+base.w), ncy = Math.min(Math.max(cy, base.y), base.y+base.h);
+    return {x:ncx - w/2, y:ncy - h/2, w, h};
+  };
+  const animateTo = (target, ms = 380) => {
+    target = clampVb(target);
+    cancelAnimationFrame(anim);
+    const from = {...vb}, t0 = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const step = t => {
+      const k = Math.min(1, (t - t0) / ms), e = ease(k);
+      vb = {x:from.x+(target.x-from.x)*e, y:from.y+(target.y-from.y)*e, w:from.w+(target.w-from.w)*e, h:from.h+(target.h-from.h)*e};
+      apply(); if(k < 1) anim = requestAnimationFrame(step);
+    };
+    anim = requestAnimationFrame(step);
+  };
+  const toSvg = (cx, cy) => { const pt = svg.createSVGPoint(); pt.x = cx; pt.y = cy; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
+  const zoomAt = (factor, cx, cy, smooth = false) => {
+    const p = cx == null ? {x: vb.x+vb.w/2, y: vb.y+vb.h/2} : toSvg(cx, cy);
+    const w = Math.min(Math.max(vb.w * factor, base.w/10), base.w*1.3);
+    factor = w / vb.w;
+    if(Math.abs(factor - 1) < 1e-6) return;            // already at the zoom limit: do nothing
+    const h = vb.h * factor;
+    const next = {x: p.x - (p.x - vb.x) * factor, y: p.y - (p.y - vb.y) * factor, w, h};
+    if(smooth) animateTo(next, 220); else { vb = clampVb(next); apply(); }
+  };
+  svg.addEventListener("wheel", e => { e.preventDefault(); zoomAt(e.deltaY > 0 ? 1.15 : 1/1.15, e.clientX, e.clientY); }, {passive:false});
+  let drag = null, moved = false;
+  const touches = new Map(); let pinchDist = 0;           // two-finger pinch zoom on phones
+  const tDist = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  svg.addEventListener("pointerdown", e => {
+    touches.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(touches.size === 2){ pinchDist = tDist(); drag = null; moved = true; return; }
+    drag = {x:e.clientX, y:e.clientY, vb:{...vb}, id:e.pointerId}; moved = false; cancelAnimationFrame(anim);
+  });
+  svg.addEventListener("pointermove", e => {
+    if(touches.has(e.pointerId)) touches.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(touches.size === 2){
+      const d = tDist(); if(pinchDist && d){ const [a, b] = [...touches.values()]; zoomAt(pinchDist / d, (a.x+b.x)/2, (a.y+b.y)/2); }
+      pinchDist = d; return;
+    }
+    if(!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if(Math.abs(dx) + Math.abs(dy) > 4 && !moved){ moved = true; svg.classList.add("dragging"); try{ svg.setPointerCapture(drag.id); }catch(_){} }
+    if(!moved) return;
+    const s = 1 / svg.getScreenCTM().a;
+    vb = clampVb({...drag.vb, x: drag.vb.x - dx*s, y: drag.vb.y - dy*s}); apply();
+  });
+  const endDrag = e => { if(e && e.pointerId != null) touches.delete(e.pointerId); if(touches.size < 2) pinchDist = 0; drag = null; svg.classList.remove("dragging"); };
+  svg.addEventListener("pointerup", endDrag); svg.addEventListener("pointercancel", endDrag); svg.addEventListener("lostpointercapture", endDrag);
+  svg.addEventListener("click", e => {
+    if(moved) return;
+    const g = e.target.closest("[data-name]");
+    if(!g || /^C\d\.\d$/.test(g.dataset.name)) return;
+    api.select(g.dataset.name, {zoom:false});
+    if(onRoomClick) onRoomClick(g.dataset.name);
+  });
+  container.querySelectorAll("[data-z]").forEach(b => b.onclick = () => {
+    if(b.dataset.z === "in") zoomAt(1/1.4, null, null, true);
+    else if(b.dataset.z === "out") zoomAt(1.4, null, null, true);
+    else animateTo(base);
+  });
+  const groupFor = name => [...svg.querySelectorAll("[data-name]")].find(g => g.dataset.name === name);
+  const api = {
+    get floor(){ return cur; },
+    setFloor(f, {keepView = false} = {}){
+      cur = Number(f); svg.innerHTML = MAP.floors[cur] || ""; setBadge(null);
+      container.querySelector(".cm-overlay")?.remove();
+      if(!keepView){ vb = {...base}; apply(); }
+    },
+    clearMarks(cls = ["cm-target","cm-selected","cm-found"]){ svg.querySelectorAll("." + cls.join(",.")).forEach(g => g.classList.remove(...cls)); },
+    mark(names, cls){ names.forEach(n => { const g = groupFor(n); if(g) g.classList.add(cls); }); },
+    focus(name, {cls = "cm-target", zoom = true} = {}){
+      const entry = MAP_INDEX.find(e => e.name === name);
+      if(!entry) return false;
+      if(entry.floor !== cur) api.setFloor(entry.floor);
+      api.clearMarks([cls]);
+      const g = groupFor(name); if(!g) return false;
+      g.classList.add(cls); setBadge(name);
+      if(zoom){
+        // real on-screen box of the room -> map coordinates (works even when parent groups are transformed)
+        const rc = g.getBoundingClientRect(), p1 = toSvg(rc.left, rc.top), p2 = toSvg(rc.right, rc.bottom);
+        const b = (rc.width && rc.height) ? {x:p1.x, y:p1.y, width:p2.x - p1.x, height:p2.y - p1.y} : g.getBBox();
+        const w = compact ? Math.max(b.width*14, base.w/2) : Math.max(b.width*7, base.w/3.2), h = w * base.h / base.w;
+        animateTo({x: b.x + b.width/2 - w/2, y: b.y + b.height/2 - h/2, w, h});
+      }
+      return true;
+    },
+    select(name, opts = {}){ api.clearMarks(["cm-selected"]); return api.focus(name, {cls:"cm-selected", ...opts}); },
+    reset(){ animateTo(base); },
+    overlay(html){ container.querySelector(".cm-overlay")?.remove(); const d = document.createElement("div"); d.className = "cm-overlay"; d.innerHTML = html; container.appendChild(d); }
+  };
+  api.setFloor(floor);
+  return api;
+}
+
+/* 7b. CAMPUS MAP — full interactive floor plan */
+SCREENS.campus = async ({room} = {}) => {
+  const u = state.user;
+  setHeader("Campus Map", {showBack: state.history.length > 0}); setTabs("campus");
+  const r = await load(`lessons_${u.student_id}`, () => lessonsWithLms(u.student_id));
+  const lessons = r.data || [];
+  const today = dayKey(now());
+  const upcoming = lessons.filter(l => new Date(l.end_time || l.start_time) >= now()).slice(0, 6);
+  const target = room ? findRoomOnMap(room) : null;
+  const startFloor = target ? target.floor : (state.mapFloor || 1);
+
+  $("#main").innerHTML = `
+    <div class="row" style="gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div class="floor-btns" role="tablist" aria-label="Floor">
+        ${[1,2,3].map(f => `<button data-floor="${f}" role="tab">Floor ${f}</button>`).join("")}
+      </div>
+      <form class="search-box" id="mapSearch" autocomplete="off">
+        <span class="si">🔍</span>
+        <input type="text" id="mapQ" placeholder="Find a room: 319, C1.3.319, canteen…" aria-label="Search room">
+      </form>
+    </div>
+    <div class="results" id="mapResults"></div>
+    <div class="map-layout" style="margin-top:8px">
+      <div>
+        <div id="bigMap" class="map-big"></div>
+        <div class="legend">
+          <span><i style="background:#8fb0f2"></i>Room</span>
+          <span><i style="background:#d93a3a"></i>Your lesson</span>
+          <span><i style="background:#1d8a52"></i>Selected</span>
+          <span><i style="background:#f0b429"></i>Search result</span>
+          <span><i style="background:#c9b3d3"></i>WC</span>
+          <span><i style="background:#8fd3c0"></i>Medical</span>
+          <span><i style="background:#f6c98f"></i>Dining hall</span>
+          <span><i style="background:#b9a7e8"></i>Library</span>
+          <span><i style="background:#cfd5df"></i>Stairs / service</span>
+          <span class="credit">Floor plans: <a href="https://github.com/Yuujiso/aitumap" target="_blank" rel="noopener">aitumap</a> © Yuujiso (MIT)</span>
+        </div>
+      </div>
+      <div>
+        <div id="roomPanel"></div>
+        <h3>Your next lessons</h3>
+        ${upcoming.length ? upcoming.map(l => {
+          const on = findRoomOnMap(l.room?.room_code);
+          return `<div class="card clickable normal" data-locate="${esc(l.room?.room_code||"")}" ${on?"":'style="opacity:.7"'}>
+            <div class="row between"><div class="title" style="font-size:15px">${esc(l.course_name)}</div><span class="pill blue">${esc(l.room?.room_code||"—")}</span></div>
+            <div class="meta"><span>${dayKey(l.start_time)===today?"Today":fmtDate(l.start_time)}, ${fmtTime(l.start_time)}</span><span>${on?`Floor ${on.floor}`:"not on map"}</span></div></div>`;
+        }).join("") : `<p class="muted">No upcoming lessons.</p>`}
+      </div>
+    </div>`;
+
+  const panel = $("#roomPanel");
+  const showRoom = name => {
+    const d = describeRoom(name);
+    const here = lessons.filter(l => findRoomOnMap(l.room?.room_code)?.name === name);
+    const next = here.find(l => new Date(l.start_time) > now());
+    panel.innerHTML = `<div class="card" style="border-left-color:var(--green)">
+      <div class="row between"><div class="title" style="font-size:18px">🚪 ${esc(d.title)}</div><span class="pill green">Floor ${viewer.floor}</span></div>
+      <div class="meta" style="margin-top:2px">${esc(d.sub)}</div>
+      ${here.length ? `<div style="margin-top:10px;font-size:14px">You have <b>${here.length}</b> lesson(s) here.${next ? `<br>Next: <b>${esc(next.course_name)}</b>, ${fmtDT(next.start_time)}` : ""}</div>`
+                    : `<div class="muted" style="margin-top:10px;font-size:13.5px">None of your lessons are in this room.</div>`}
+    </div>`;
+  };
+  const viewer = createMapViewer($("#bigMap"), {floor:startFloor, onRoomClick: showRoom});
+  if(!viewer) return;
+  const setFloorBtns = () => document.querySelectorAll("[data-floor]").forEach(b => b.classList.toggle("active", Number(b.dataset.floor) === viewer.floor));
+  const markLessons = () => {
+    const names = lessons.filter(l => dayKey(l.start_time) === today && new Date(l.end_time || l.start_time) >= now())
+                         .map(l => findRoomOnMap(l.room?.room_code)).filter(Boolean).map(e => e.name);
+    viewer.mark(names, "cm-target");
+  };
+  const changeFloor = f => { viewer.setFloor(f); state.mapFloor = f; setFloorBtns(); markLessons(); };
+  document.querySelectorAll("[data-floor]").forEach(b => b.onclick = () => changeFloor(Number(b.dataset.floor)));
+  markLessons(); setFloorBtns();
+
+  const locate = (entry, cls = "cm-selected") => {
+    if(entry.floor !== viewer.floor){ viewer.setFloor(entry.floor); state.mapFloor = entry.floor; markLessons(); }
+    setFloorBtns();
+    viewer.select(entry.name);
+    showRoom(entry.name);
+  };
+  if(target){ locate(target); }
+  else if(room){ panel.innerHTML = `<div class="banner warn">Room <b>${esc(room)}</b> is not on the floor plan. The map covers blocks C1.1–C1.3, floors 1–3.</div>`; }
+  else { panel.innerHTML = `<div class="banner info">Click any room on the map, or search for it above. Today's lessons are shown in red.</div>`; }
+
+  document.querySelectorAll("[data-locate]").forEach(c => c.onclick = () => {
+    const e = findRoomOnMap(c.dataset.locate);
+    if(e) locate(e); else toast(`Room ${esc(c.dataset.locate)} is not on the floor plan.`);
+  });
+
+  /* search: "319", "C1.3.319", "319P", or a facility name like "столовая" / "dining" */
+  const results = $("#mapResults");
+  const doSearch = () => {
+    const q = $("#mapQ").value.trim().toUpperCase();
+    results.innerHTML = "";
+    viewer.clearMarks(["cm-found"]);
+    if(!q){ return; }
+    const hits = MAP_INDEX.filter(e => /^\d+[A-Z]?$/.test(q)
+        ? new RegExp("\\." + q + (/[A-Z]$/.test(q) ? "$" : "[A-Z]?$")).test(e.label)
+        : searchText(e).includes(q));
+    const more = Math.max(0, hits.length - 12); hits.length = Math.min(hits.length, 12);
+    if(!hits.length){
+      viewer.clearMarks(["cm-selected"]);
+      panel.innerHTML = `<div class="banner warn">Nothing found for “<b>${esc(q)}</b>”.<br>Try a room number (<b>319</b>), a full code (<b>C1.3.319</b>) or a place: <b>dining hall</b>, <b>library</b>, <b>medical</b>.</div>`;
+      return;
+    }
+    results.innerHTML = hits.map((h, i) => `<button class="chip" data-hit="${i}">${esc(prettyLabel(h.label))} · floor ${h.floor}</button>`).join("")
+      + (more ? `<span class="muted" style="font-size:13px;align-self:center">+${more} more — type more of the code</span>` : "");
+    results.querySelectorAll("[data-hit]").forEach(b => b.onclick = () => locate(hits[Number(b.dataset.hit)]));
+    if(hits[0].floor !== viewer.floor) changeFloor(hits[0].floor);
+    viewer.mark(hits.filter(h => h.floor === viewer.floor).map(h => h.name), "cm-found");
+    if(hits.length === 1) locate(hits[0]);
+  };
+  let t; $("#mapQ").oninput = () => { clearTimeout(t); t = setTimeout(doSearch, 200); };
+  $("#mapSearch").onsubmit = e => { e.preventDefault(); doSearch(); };
+};
+
+/* 8. OUTLOOK — recent emails (academic_item where source = Outlook) */
+SCREENS.outlook = async () => {
+  const u = state.user;
+  setHeader("Outlook", {showBack:false}); setTabs("outlook"); loading();
+  const run = async () => {
+    const r = await load(`items_${u.student_id}`, () => itemsWithLms(u.student_id));
+    const mails = (r.data || []).filter(i => i.source === "Outlook" || (i.item_type||"").toLowerCase() === "email")
+                                .sort((a,b) => new Date(b.due_at) - new Date(a.due_at));
+    $("#main").innerHTML = `${r.error ? errorBlock(r.error, run, r.cached) : ""}
+      <p class="muted" style="margin:0 0 10px;font-size:13.5px">Recent emails from professors and AITU offices</p>
+      ${mails.length ? `<div class="list-grid">${mails.map(itemCard).join("")}</div>` : `<div class="empty"><div class="big">📭</div>No emails yet.</div>`}`;
+    bindItemCards(); bindRetry(run);
+  };
+  run();
+};
+
+/* 9. MY REMINDERS — read, cancel (UPDATE), delete (DELETE), mark sent (Q5) */
+SCREENS.reminders = async () => {
+  const u = state.user;
+  setHeader("My Reminders", {showBack:false}); setTabs("reminders"); loading();
+  const run = async () => {
+    const r = await load(`rem_${u.student_id}`, () => DB().reminders(u.student_id));
+    const rems = r.data || [];
+    const due = rems.filter(x => x.status === "scheduled" && new Date(x.remind_at) < now());
+    const groups = [["scheduled","Scheduled"],["sent","Sent"],["cancelled","Cancelled"]];
+    const pill = s => ({scheduled:'<span class="pill blue">scheduled</span>', sent:'<span class="pill green">sent</span>', cancelled:'<span class="pill grey">cancelled</span>'}[s] || `<span class="pill grey">${esc(s)}</span>`);
+    $("#main").innerHTML = `
+      ${r.error ? errorBlock(r.error, run, r.cached) : ""}
+      ${due.length ? `<div class="banner warn">⏱ ${due.length} reminder(s) reached their time.
+         <button class="btn small secondary" id="markSent" style="margin-top:8px;background:#fff">Deliver push & mark as sent</button></div>` : ""}
+      ${rems.length ? groups.map(([s,label]) => {
+        const g = rems.filter(x => (x.status||"scheduled") === s); if(!g.length) return "";
+        return `<h3>${label} (${g.length})</h3><div class="list-grid">` + g.map(x => `
+          <div class="card ${s==="scheduled"?"normal":"past"}" style="${s==="scheduled"?"":"opacity:.85"}">
+            <div class="row between"><div class="title">🔔 ${esc(x.reminder_title)}</div>${pill(s)}</div>
+            <div class="meta"><span>${fmtDT(x.remind_at)}</span>${x.interval && x.interval!=="none"?`<span>${esc(x.interval)}</span>`:""}</div>
+            <div class="row" style="margin-top:10px;gap:8px">
+              ${s==="scheduled" ? `<button class="btn small secondary" data-cancel="${x.reminder_id}">Cancel reminder</button>` : ""}
+              ${s!=="scheduled" ? `<button class="btn small danger" data-del="${x.reminder_id}">Delete</button>` : ""}
+            </div></div>`).join("") + `</div>`;
+      }).join("") : `<div class="empty"><div class="big">🔕</div>No reminders yet.<br>Open a deadline and click “Set Reminder”.</div>
+         <button class="btn primary" id="toDl">Go to Deadlines</button>`}`;
+    const td = $("#toDl"); if(td) td.onclick = () => go("deadlines", {}, {root:true});
+    const ms = $("#markSent"); if(ms) ms.onclick = async () => {
+      ms.disabled = true;
+      try{ const rows = await DB().markDueSent(u.student_id);
+           (rows||[]).forEach(x => pushNotify("AITU Hub — Reminder", x.reminder_title)); run(); }
+      catch(ex){ ms.disabled = false; toast("❌ " + esc(ex.message)); }
+    };
+    document.querySelectorAll("[data-cancel]").forEach(b => b.onclick = async () => {
+      if(!await confirmModal({title:"Cancel this reminder?", text:"You will not get a push for it. You can set a new one any time.", okText:"Cancel reminder", danger:true})) return;
+      try{ await DB().updateReminder(Number(b.dataset.cancel), {status:"cancelled"}); toast("Reminder cancelled."); run(); }
+      catch(ex){ toast("❌ " + esc(ex.message)); }
+    });
+    document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+      if(!await confirmModal({title:"Delete this reminder?", text:"It will be removed from the database. This cannot be undone.", okText:"Delete", danger:true})) return;
+      try{ await DB().deleteReminder(Number(b.dataset.del)); toast("🗑 Reminder deleted."); run(); }
+      catch(ex){ toast("❌ " + esc(ex.message)); }
+    });
+    bindRetry(run);
+  };
+  run();
+};
+
+/* Simulated push for reminders whose time came (in-app) */
+async function checkDueReminders(){
+  if(!state.user) return;
+  try{
+    const rems = await DB().reminders(state.user.student_id);
+    const due = rems.filter(x => x.status === "scheduled" && new Date(x.remind_at) < now());
+    if(due.length) toast(`🔔 <span><b>${due.length} reminder(s) are due</b><br>Open <u>Reminders</u> to deliver them.</span>`, 4500);
+  }catch(e){}
+}
+
+/* Reminder Scheduler (desktop): every 30 s, deliver reminders whose time has come.
+   Shows a Windows notification and sets reminder.status = 'sent' in the database. */
+let schedulerBusy = false;
+async function reminderScheduler(){
+  if(!state.user || schedulerBusy) return;
+  schedulerBusy = true;
+  try{
+    const rems = await DB().reminders(state.user.student_id);
+    const due = rems.filter(x => x.status === "scheduled" && new Date(x.remind_at) <= now()
+                               && now() - new Date(x.remind_at) < 10*60000);   // only fresh ones (last 10 min)
+    for(const r of due){
+      await DB().updateReminder(r.reminder_id, {status:"sent"});
+      pushNotify("AITU Hub — Reminder", `${r.reminder_title} (${fmtTime(r.remind_at)})`);
+    }
+    if(due.length && state.screen === "reminders") render();
+  }catch(e){ /* offline: try again next time */ }
+  finally{ schedulerBusy = false; }
+}
+setInterval(reminderScheduler, 30000);
+
+/* PWA: offline app shell when opened from a website (not in the desktop app) */
+if("serviceWorker" in navigator && location.protocol === "https:"){
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+
+/* ------------------------------- start ------------------------------- */
+if(state.user && sbConfig() && !getSession()){ state.user = null; store.del("hub_user"); }   // no valid session -> log in again
+go(state.user ? "dashboard" : "login", {}, {root:true});
+if(state.user){ setTimeout(checkDueReminders, 800); setTimeout(() => lmsAutoSync(), 1500); startLmsTimer(); }
+try{ if("Notification" in window && Notification.permission === "default") Notification.requestPermission(); }catch(e){}
+</script>
+</body>
+</html>
